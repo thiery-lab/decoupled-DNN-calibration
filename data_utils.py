@@ -157,10 +157,10 @@ class encoded_cifar100(data.Dataset):
         return X, y
 
 
-DATASET_PATH = {'CIFAR10' : '/home/rahul/work/NN_with_prior_weights/data/',
-                'CIFAR100' : '/home/rahul/work/NN_with_prior_weights/data/',
-                'ENCODED256_CIFAR10' : '/home/rahul/work/NN_with_prior_weights/data/encoded_cifar/',
-                'ENCODED256_CIFAR100' : '/home/rahul/work/NN_with_prior_weights/data/encoded_cifar/'
+DATASET_PATH = {'CIFAR10' : '/home/rahul/lab_work/data/',
+                'CIFAR100' : '/home/rahul/lab_work/data/',
+                'ENCODED256_CIFAR10' : '/home/rahul/lab_work/data/encoded_cifar/',
+                'ENCODED256_CIFAR100' : '/home/rahul/lab_work/data/encoded_cifar/'
                }
 
 DATASET_DICTIONARY = {'CIFAR10_TRAIN' : {'class_function' : torchvision.datasets.CIFAR10,
