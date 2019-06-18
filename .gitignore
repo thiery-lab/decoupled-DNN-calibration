@@ -1,0 +1,10 @@
+data/
+work/NN_with_prior_weights/data/
+
+*.gz
+._ipynb_checkpoints
+*.rar
+*.zip
+__pycahche__
+*.txt
+*.chkpt

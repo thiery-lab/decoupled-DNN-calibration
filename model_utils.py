@@ -5,7 +5,7 @@ import torch.optim as optim
 import os, sys
 import matplotlib.pyplot as plt
 import math
-import customized_model as model
+from models import *
 import pickle
 import datetime as dt
 try:
@@ -33,6 +33,7 @@ print_init_model_state = True
 current_epoch = 0
 train_epoch = 180                    # Retraining epoch when loading pretrained model to retrain
 swa_epoch = 100                      # How many epochs for SWA params
+end_epoch = None
 
 model_type = None
 kernel_net = None
@@ -61,6 +62,38 @@ last_epoch = 0
 last_lr = 0
 depth = None
 loss_mixing_ratio = 1.0
+
+lr_decay_start_t = 0.4
+loss_direction = []
+last_loss = -100
+accuracy = 0.1
+
+
+def learning_rate_mod_factor(epoch, loss):
+    
+    global lr_decay_start_t, loss_direction, last_loss, net_type, end_epoch, lr_init, lr_final
+        
+    t = (epoch) / (end_epoch*1.0)
+    
+    if t < 0.4 and lr_decay_start_t == 0.4:
+        if last_loss != -100:
+            loss_direction.append(last_loss < loss)
+            if len(loss_direction) > 10:
+                loss_direction = loss_direction[1:]
+                print("Loss increment instances so far = %d" %(sum(loss_direction)))
+                if sum(loss_direction) > 4:
+                    lr_decay_start_t = t - 0.00001
+
+    last_loss = loss
+    lr_ratio = lr_final / lr_init
+    if t <= lr_decay_start_t:
+        factor = 1.0
+    elif t <= 0.9:
+        factor = 1.0 - (1.0 - lr_ratio) * (t - lr_decay_start_t) / (0.9 - lr_decay_start_t)
+    else:
+        factor = lr_ratio
+    
+    return factor
 
 
 def push_output(string_to_write):
@@ -178,22 +211,22 @@ def load_train(trainloader, testloader):
     
     global net, likelihood, optimizer, depth, loss_mixing_ratio
     global current_epoch, lr_init, train_epoch, print_init_model_state
-    global acc, running_loss, last_epoch, last_lr
+    global acc, running_loss, last_epoch, last_lr, end_epoch
     
     running_loss = 0.0
     
     if '+GP' not in model_type:
-        net = model.__dict__[kernel_net](device=device, num_classes=num_classes, depth=depth,
-                                   rendFeature_rank_reduction=rendFeature_rank_reduction, 
-                                   loss_mixing_ratio=loss_mixing_ratio, net_type=model_type, 
-                                   fc_setup=fc_setup, trainloader=trainloader)
+        net = BayesFCNet(device=device, num_classes=num_classes, depth=depth,
+                        rendFeature_rank_reduction=rendFeature_rank_reduction, 
+                        loss_mixing_ratio=loss_mixing_ratio, net_type=model_type,
+                        fc_setup=fc_setup, trainloader=trainloader)
         net.to(device)
         optimizer = optim.SGD(net.parameters(), lr=lr_init, weight_decay=weight_decay, momentum=momentum)
         _ = net.train()
         likelihood = None
     else:
-        net = model.GPNet(device=device, kernel_net=kernel_net, kernel_net_type=model_type,
-                          gp_feature_size=gp_kernel_feature, num_classes=num_classes, depth=depth, grid_size=grid_size)
+        net = GPNet(device=device, kernel_net_type=model_type, gp_feature_size=gp_kernel_feature, 
+                    num_classes=num_classes, depth=depth, grid_size=grid_size)
         net.to(device)
         likelihood = SoftmaxLikelihood(gp_kernel_feature, num_classes)
         likelihood.to(device)
@@ -248,7 +281,7 @@ def load_train(trainloader, testloader):
     # with gpytorch.settings.use_toeplitz(False), gpytorch.settings.max_preconditioner_size(0):
     for epoch in range(current_epoch, epoch_count):  # loop over the dataset multiple times
 
-            factor = model.learning_rate_mod_factor(model_type, epoch, end_epoch, lr_init, lr_final, running_loss)
+            factor = learning_rate_mod_factor(epoch, running_loss)
             for i, g in enumerate(optimizer.param_groups):
                 print("Learning rate for param %d is currently %.4f" %(i, g['lr']))
                 push_output("Learning rate for param %d is currently %.4f\n" %(i, g['lr']))
