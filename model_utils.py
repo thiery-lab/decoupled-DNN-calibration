@@ -52,7 +52,7 @@ random_sample_train = 5              # Prior distribution sample size (used with
 swa_update_freq = 1
 
 # Module attributes holding important data which are training instance level
-device = torch.device('cuda:1')
+device = torch.device('cuda:0')
 net = None
 likelihood = None
 optimizer = None
@@ -357,3 +357,43 @@ def return_model():
     
     return net
 
+
+def calculate_ECE(probs, preds, targets, ECE_bin=None):
+    
+    if ECE_bin is None:
+        ECE_bin = np.sort(probs)[::len(probs)//20].tolist()
+        
+    if ECE_bin[0] == 0:
+        ECE_bin = ECE_bin[1:]
+    if ECE_bin[-1] != 1:
+        ECE_bin += [1]
+    ECE_bin_correct = [0 for _ in range(len(ECE_bin))]
+    ECE_bin_total = [0 for _ in range(len(ECE_bin))]
+    ECE_bin_total_conf = [0 for _ in range(len(ECE_bin))]
+
+    for index in range(len(probs)):
+        for bin_ in range(len(ECE_bin)):
+            if probs[index] <= ECE_bin[bin_]:
+                ECE_bin_correct[bin_] += int(targets[index] == preds[index])
+                ECE_bin_total[bin_] += 1
+                ECE_bin_total_conf[bin_] += probs[index]
+                break
+
+    ece_score_mid = 0
+    ece_score_avg = 0
+    start_bin = [0] + ECE_bin[:-1]
+    mid_bins = [0.5*(start_bin[i] + ECE_bin[i]) for i in range(len(ECE_bin))]
+    
+#     print(mid_bins, ECE_bin_correct, ECE_bin_total)
+    for prob_class in range(len(ECE_bin)):
+        correct = ECE_bin_correct[prob_class]
+        total = ECE_bin_total[prob_class]
+        avg_conf = ECE_bin_total_conf[prob_class]*1.0 / total if total > 0 else 0
+        accuracy = float(correct)/total if total > 0 else 0
+        ece_score_mid += abs(accuracy - mid_bins[prob_class]) * total
+        ece_score_avg += abs(accuracy - avg_conf) * total
+        
+    ece_score_mid /= 1.0*sum(ECE_bin_total)
+    ece_score_avg /= 1.0*sum(ECE_bin_total)
+    #     print(ECE_bin)
+    return ece_score_mid, ece_score_avg

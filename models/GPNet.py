@@ -11,6 +11,12 @@ import math
 import copy
 from models.preresnet import PreResNet
 from models.wide_resnet import WideResNet
+from models.basic_bayes import BayesFCNet
+try:
+    import gpytorch
+    gpytorch_imported = True
+except:
+    gpytorch_imported = False
 
 # stores the architecture base class argument names
 # the name of the linear layer of the architecture
@@ -30,8 +36,8 @@ if gpytorch_imported:
                      num_classes=10, grid_bounds=(-10., 10.), depth=110, grid_size=64):
 
             super(GPNet, self).__init__()
-            self.feature_extractor = models.BayesFCNet(device=device, net_type=kernel_net_type,
-                                                        num_classes=gp_feature_size, depth=depth)
+            self.feature_extractor = BayesFCNet(device=device, net_type=kernel_net_type,
+                                                fc_setup=[], num_classes=gp_feature_size, depth=depth)
             self.gp_layer = GaussianProcessLayer(num_dim=gp_feature_size, grid_bounds=grid_bounds, grid_size=grid_size)
             self.grid_bounds = grid_bounds
             self.num_dim = gp_feature_size
@@ -40,7 +46,7 @@ if gpytorch_imported:
 
 
         def forward(self, x):
-            features = self.feature_extractor.encode(x)
+            features = self.feature_extractor.extract_feature(x)
             features = gpytorch.utils.grid.scale_to_bounds(features, self.grid_bounds[0], self.grid_bounds[1])
             res = self.gp_layer(features)
             return res

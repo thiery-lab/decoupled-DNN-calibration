@@ -51,6 +51,9 @@ def BayesFCNet(**kwargs):
 
             if 'encoded' in kwargs['net_type']:
                 Module.__init__(self)
+                # find a better way to let the encoder model know
+                # the incoming data feature size
+                self.feature_size = kwargs['num_classes']
             else:
                 base_class = MODEL_ATTRIB_DICT[archi_name]['class']
                 base_init_args = MODEL_ATTRIB_DICT[archi_name]['args']
@@ -67,11 +70,11 @@ def BayesFCNet(**kwargs):
 
             self.net_type = kwargs['net_type']
             self.device = kwargs['device']
-            self.loss_mixing_ratio = kwargs['loss_mixing_ratio']
+            self.loss_mixing_ratio = kwargs.get('loss_mixing_ratio', None)
 
             fc_setup = kwargs['fc_setup']
             num_classes = kwargs['num_classes']
-            rendFeature_rank_reduction = kwargs['rendFeature_rank_reduction']
+            rendFeature_rank_reduction = kwargs.get('rendFeature_rank_reduction', None)
 
             if 'trainloader' in kwargs:
                 self.dataloader = kwargs['trainloader']
@@ -177,8 +180,10 @@ def BayesFCNet(**kwargs):
 
         def extract_feature(self, x):
 
-            return super(bayesFCNet, self).forward(x)
-
+            if 'encoded' not in self.net_type:
+                return super(bayesFCNet, self).forward(x)
+            else:
+                return x
 
         def FC_encode(self, x):
 
@@ -232,8 +237,7 @@ def BayesFCNet(**kwargs):
 
         def avg_encode(self, x, noise_sample, param_list=[]):
 
-            if 'encoded' not in self.net_type:
-                x = self.extract_feature(x)
+            x = self.extract_feature(x)
 
             if len(param_list)==0:
                 final_encode = F.softmax(self.FC_encode(x), dim=1)
@@ -278,8 +282,7 @@ def BayesFCNet(**kwargs):
             if 'bayesian' not in self.net_type:
                 random_sample_train = 1
 
-            if 'encoded' not in self.net_type:
-                x = self.extract_feature(x)
+            x = self.extract_feature(x)
 
             for i in range(random_sample_train):
                 last_layer = self.FC_encode(x)
