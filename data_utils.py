@@ -4,6 +4,53 @@ import torchvision.transforms as transforms
 import torchvision
 import pickle
 import numpy as np
+from PIL import Image
+
+class retinopathy_dataset(data.Dataset):
+    '''DIABETIC RETINOPATHY dataset downloaded from
+    kaggle link : https://www.kaggle.com/c/diabetic-retinopathy-detection/data
+    root : location of data files
+    train : whether training dataset (True) or test (False)
+    transform : torch image transformations
+    binary : whether healthy '0' vs damaged '1,2,3,4' binary detection (True) 
+             or multiclass (False)
+    '''
+
+    
+    def __init__(self, root, train, transform, binary=True, balance=True):
+        if train:
+            self.img_dir = root + 'train_images/'
+            label_csv = root + 'trainLabels.csv'
+        else:
+            self.img_dir = root + 'test_images/'
+            label_csv = root + 'testLabels.csv'
+            
+        self.transform = transform
+        self.binary = binary
+        with open(label_csv, 'r') as label_file:
+            label_tuple = [line.strip().split(',')[:2] for line in label_file.readlines()[1:]]
+            self.imgs = [item[0] for item in label_tuple]
+            self.labels = [int(item[1]) for item in label_tuple]
+            bad_images = ['10_left']
+            for img in bad_images:
+                if img in self.imgs:
+                    index = self.imgs.index(img)
+                    self.imgs = self.imgs[:index] + self.imgs[index+1:]
+                    self.labels = self.labels[:index] + self.labels[index+1:]
+
+
+    def __len__(self):
+        return len(self.imgs)
+
+    def __getitem__(self, idx):
+        img_name = self.imgs[idx]
+        image = Image.open(self.img_dir + img_name + '.jpeg')
+        image = image.resize((256, 256), resample=Image.BILINEAR)
+        image = self.transform(image)
+        label = self.labels[idx]
+        if self.binary:
+            label = min(label, 1)
+        return image, label
 
 
 class encoded_cifar10(data.Dataset):
@@ -160,7 +207,8 @@ class encoded_cifar100(data.Dataset):
 DATASET_PATH = {'CIFAR10' : '/home/rahul/lab_work/data/',
                 'CIFAR100' : '/home/rahul/lab_work/data/',
                 'ENCODED256_CIFAR10' : '/home/rahul/lab_work/data/encoded_cifar/',
-                'ENCODED256_CIFAR100' : '/home/rahul/lab_work/data/encoded_cifar/'
+                'ENCODED256_CIFAR100' : '/home/rahul/lab_work/data/encoded_cifar/',
+                'DIABETIC_RETINOPATHY' : '/data02/DIABETIC_RETINOPATHY/'
                }
 
 DATASET_DICTIONARY = {'CIFAR10_TRAIN' : {'class_function' : torchvision.datasets.CIFAR10,
@@ -270,8 +318,25 @@ DATASET_DICTIONARY = {'CIFAR10_TRAIN' : {'class_function' : torchvision.datasets
                                                                   'train' : 1,
                                                                    'depth' : 28
                                                                   }
-                                                  }
-
+                                                  },
+                     'DIAB_RETIN_TRAIN' : {'class_function' : retinopathy_dataset,
+                                        'init_params' : {'root' : DATASET_PATH['DIABETIC_RETINOPATHY'],
+                                                        'train' : True,
+                                                        'transform' : transforms.Compose([transforms.ToTensor(), 
+                                                                                    transforms.Normalize((0.4914, 0.4822, 0.4465), 
+                                                                                                         (0.2023, 0.1994, 0.2010))]),
+                                                        'binary' : True
+                                                        }
+                                        },
+                      'DIAB_RETIN_TEST' : {'class_function' : retinopathy_dataset,
+                                        'init_params' : {'root' : DATASET_PATH['DIABETIC_RETINOPATHY'],
+                                                        'train' : False,
+                                                        'transform' : transforms.Compose([transforms.ToTensor(), 
+                                                                                    transforms.Normalize((0.4914, 0.4822, 0.4465), 
+                                                                                                         (0.2023, 0.1994, 0.2010))]),
+                                                        'binary' : True
+                                                        }
+                                        },
                      }
 
 

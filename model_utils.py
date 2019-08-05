@@ -56,6 +56,7 @@ device = torch.device('cuda:0')
 net = None
 likelihood = None
 optimizer = None
+optim_SGD = True
 acc = 0
 running_loss = 0
 last_epoch = 0
@@ -111,7 +112,7 @@ def push_output(string_to_write):
 
 def refresh_params():
     
-    global fc_setup, current_epoch, lr_init, train_epoch, acc, lr_final, last_epoch
+    global fc_setup, current_epoch, lr_init, train_epoch, acc, lr_final, last_epoch, optim_method
 
     fc_setup = None
     current_epoch = 0
@@ -124,6 +125,7 @@ def refresh_params():
     rendFeature_rank_reduction = None
     depth = None
     output_writer = None
+    optim_method = 'SGD'
 
 
 # Analysis function for train, test, out-of-class analysis
@@ -211,7 +213,7 @@ def load_train(trainloader, testloader):
     
     global net, likelihood, optimizer, depth, loss_mixing_ratio
     global current_epoch, lr_init, train_epoch, print_init_model_state
-    global acc, running_loss, last_epoch, last_lr, end_epoch
+    global acc, running_loss, last_epoch, last_lr, end_epoch, optim_SGD
     
     running_loss = 0.0
     
@@ -221,7 +223,10 @@ def load_train(trainloader, testloader):
                         loss_mixing_ratio=loss_mixing_ratio, net_type=model_type,
                         fc_setup=fc_setup, trainloader=trainloader)
         net.to(device)
-        optimizer = optim.SGD(net.parameters(), lr=lr_init, weight_decay=weight_decay, momentum=momentum)
+        if optim_SGD:
+            optimizer = optim.SGD(net.parameters(), lr=lr_init, weight_decay=weight_decay, momentum=momentum)
+        else:
+            optimizer = optim.SGD(net.parameters(), lr=lr_init, weight_decay=weight_decay)
         _ = net.train()
         likelihood = None
     else:
@@ -230,12 +235,20 @@ def load_train(trainloader, testloader):
         net.to(device)
         likelihood = SoftmaxLikelihood(gp_kernel_feature, num_classes)
         likelihood.to(device)
-        optimizer = optim.SGD([
-        {'params': net.feature_extractor.parameters()},
-        {'params': net.gp_layer.hyperparameters(), 'lr': lr_init * 0.01},
-        {'params': net.gp_layer.variational_parameters()},
-        {'params': likelihood.parameters()},
-                        ], lr=lr_init, momentum=momentum, nesterov=True, weight_decay=weight_decay)
+        if optim.SGD:
+            optimizer = optim.SGD([
+            {'params': net.feature_extractor.parameters()},
+            {'params': net.gp_layer.hyperparameters(), 'lr': lr_init * 0.01},
+            {'params': net.gp_layer.variational_parameters()},
+            {'params': likelihood.parameters()},
+                            ], lr=lr_init, momentum=momentum, nesterov=True, weight_decay=weight_decay)
+        else:
+            optimizer = optim.Adam([
+            {'params': net.feature_extractor.parameters()},
+            {'params': net.gp_layer.hyperparameters(), 'lr': lr_init * 0.01},
+            {'params': net.gp_layer.variational_parameters()},
+            {'params': likelihood.parameters()},
+                            ], lr=lr_init, nesterov=True, weight_decay=weight_decay)
         _ = net.train()
         likelihood.train()
         mll = gpytorch.mlls.VariationalELBO(likelihood, net.gp_layer, num_data=len(trainloader.dataset))
@@ -306,7 +319,7 @@ def load_train(trainloader, testloader):
                 #net.modify_grad()
                 optimizer.step()
                 running_loss = 0.9*running_loss + 0.1*loss.item() if running_loss != 0 else loss.item()
-                if i%500 == 0:
+                if i% (len(trainloader) // (4*labels.size()[0])) == 0:
                     print('[%d, %5d] loss: %.3f' %(epoch + 1, i + 1, running_loss))
                     push_output('[%d, %5d] loss: %.3f\n' %(epoch + 1, i + 1, running_loss))
 
