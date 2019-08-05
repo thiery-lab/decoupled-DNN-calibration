@@ -211,6 +211,7 @@ DATASET_PATH = {'CIFAR10' : '/home/rahul/lab_work/data/',
                 'DIABETIC_RETINOPATHY' : '/data02/DIABETIC_RETINOPATHY/'
                }
 
+
 DATASET_DICTIONARY = {'CIFAR10_TRAIN' : {'class_function' : torchvision.datasets.CIFAR10,
                                         'init_params' : {'root' : DATASET_PATH['CIFAR10'],
                                                         'train' : True,
@@ -340,7 +341,7 @@ DATASET_DICTIONARY = {'CIFAR10_TRAIN' : {'class_function' : torchvision.datasets
                      }
 
 
-def generate_dataloaders(data_name, batch_size, shuffle, num_workers):
+def generate_dataloaders(data_name, batch_size, shuffle, num_workers, root=None):
     '''
         generates dataloaders and returns it. Data name is one of the keys in
         DATASET_DICTIONARY which is stored in this module 'data_utils' e.g: 'CIFAR10_TRAIN'
@@ -348,6 +349,8 @@ def generate_dataloaders(data_name, batch_size, shuffle, num_workers):
     '''
     
     dataset_attributes = DATASET_DICTIONARY[data_name]
+    if root is not None:
+        dataset_attributes['init_params']['root'] = root
     dataset = dataset_attributes['class_function'](**dataset_attributes['init_params'])
     
     return data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
