@@ -16,28 +16,37 @@ class retinopathy_dataset(data.Dataset):
              or multiclass (False)
     '''
 
-    
+
     def __init__(self, root, train, transform, binary=True, balance=True):
         if train:
-            self.img_dir = root + 'train_images/'
+            self.img_dir = root + 'train/'
             label_csv = root + 'trainLabels.csv'
         else:
-            self.img_dir = root + 'test_images/'
+            self.img_dir = root + 'test/'
             label_csv = root + 'testLabels.csv'
             
         self.transform = transform
         self.binary = binary
         with open(label_csv, 'r') as label_file:
             label_tuple = [line.strip().split(',')[:2] for line in label_file.readlines()[1:]]
-            self.imgs = [item[0] for item in label_tuple]
-            self.labels = [int(item[1]) for item in label_tuple]
-            bad_images = ['10_left']
-            for img in bad_images:
-                if img in self.imgs:
-                    index = self.imgs.index(img)
-                    self.imgs = self.imgs[:index] + self.imgs[index+1:]
-                    self.labels = self.labels[:index] + self.labels[index+1:]
+        self.imgs = [item[0] for item in label_tuple]
+        self.labels = [int(item[1]) for item in label_tuple]
+        if self.binary:
+            self.labels = [min(label,1) for label in self.labels]
 
+        bad_images = ['10_left']
+        for img in bad_images:
+            if img in self.imgs:
+                index = self.imgs.index(img)
+                self.imgs = self.imgs[:index] + self.imgs[index+1:]
+                self.labels = self.labels[:index] + self.labels[index+1:]
+
+        # make all these better
+        classes, counts = np.unique(np.array(self.labels), return_counts=True)
+        deviation = np.std(counts) / np.mean(counts)
+        if deviation > 0.05 and train:
+            weights = 1./torch.tensor(counts, dtype=torch.float)
+            self.sample_weights = weights[self.labels]
 
     def __len__(self):
         return len(self.imgs)
@@ -48,8 +57,7 @@ class retinopathy_dataset(data.Dataset):
         image = image.resize((256, 256), resample=Image.BILINEAR)
         image = self.transform(image)
         label = self.labels[idx]
-        if self.binary:
-            label = min(label, 1)
+
         return image, label
 
 
@@ -352,6 +360,13 @@ def generate_dataloaders(data_name, batch_size, shuffle, num_workers, root=None)
     if root is not None:
         dataset_attributes['init_params']['root'] = root
     dataset = dataset_attributes['class_function'](**dataset_attributes['init_params'])
-    
-    return data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
-    
+
+    if hasattr(dataset, 'sample_weights'):
+        print("Weighted sampler has been selected to balance classes")
+        sampler = data.WeightedRandomSampler(
+            weights=dataset.sample_weights,
+            num_samples=len(dataset.sample_weights),
+            replacement=True)
+        return data.DataLoader(dataset, batch_size=batch_size, sampler=sampler, shuffle=False, num_workers=num_workers)
+    else:
+        return data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)

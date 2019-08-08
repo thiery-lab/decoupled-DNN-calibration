@@ -8,6 +8,7 @@ import math
 from models import *
 import pickle
 import datetime as dt
+from tqdm import tqdm
 try:
     from gpytorch.likelihoods import SoftmaxLikelihood
     import gpytorch
@@ -152,7 +153,7 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
         return
 
     with torch.no_grad():
-        for data in dataiter:
+        for data in tqdm(dataiter, ncols=150):
             images, labels = data
             batch_count += 1
             if '+GP' not in net.net_type:
@@ -316,10 +317,10 @@ def load_train(trainloader, testloader):
                     output = net(inputs)
                     loss = -mll(output, labels)
                 loss.backward()
-                #net.modify_grad()
+                # net.modify_grad()
                 optimizer.step()
                 running_loss = 0.9*running_loss + 0.1*loss.item() if running_loss != 0 else loss.item()
-                if i% (len(trainloader) // (4*labels.size()[0])) == 0:
+                if i% (len(trainloader) // 4) == 0:
                     print('[%d, %5d] loss: %.3f' %(epoch + 1, i + 1, running_loss))
                     push_output('[%d, %5d] loss: %.3f\n' %(epoch + 1, i + 1, running_loss))
 
@@ -361,7 +362,7 @@ def save_model():
         
     checkpoint_name = model_type + '_' + '_'.join(['-'.join(map(str, item)) for item in attributes])
     curtime = dt.datetime.now()
-    tm = curtime.strftime("%Y-%m-%d-%H.%M")    
+    tm = curtime.strftime("%Y-%m-%d-%H.%M")
     torch.save(checkpoint, SAVED_MODEL_PATH + checkpoint_name + '-' + tm + '.chkpt')
     print("Model and optimizer status has been saved!")
     
