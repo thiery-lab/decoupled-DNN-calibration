@@ -153,7 +153,7 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
         return
 
     with torch.no_grad():
-        for data in tqdm(dataiter, ncols=150):
+        for data in tqdm(dataiter, ncols=100):
             images, labels = data
             batch_count += 1
             if '+GP' not in net.net_type:
@@ -320,7 +320,7 @@ def load_train(trainloader, testloader):
                 # net.modify_grad()
                 optimizer.step()
                 running_loss = 0.9*running_loss + 0.1*loss.item() if running_loss != 0 else loss.item()
-                if i% (len(trainloader) // 4) == 0:
+                if i% (len(trainloader) // 2) == 0:
                     print('[%d, %5d] loss: %.3f' %(epoch + 1, i + 1, running_loss))
                     push_output('[%d, %5d] loss: %.3f\n' %(epoch + 1, i + 1, running_loss))
 
