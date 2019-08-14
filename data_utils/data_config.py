@@ -138,5 +138,47 @@ DATASET_DICTIONARY = {'CIFAR10_TRAIN' : {'class_function' : torchvision.datasets
                                                         'binary' : True
                                                         }
                                         },
+                     'GP+ENCODED256_D164_CIFAR10_VALID' : {'class_function' : 'resnet_encoded_cifar10',
+                                                  'init_params' : {'root' : DATASET_PATH['ENCODED256_CIFAR10'],
+                                                                  'train' : 2,
+                                                                   'depth' : 164,
+                                                                   'withGP' : True
+                                                                  }
+                                                      },
+                     'GP+ENCODED256_D164_CIFAR10_TEST' : {'class_function' : 'resnet_encoded_cifar10',
+                                                  'init_params' : {'root' : DATASET_PATH['ENCODED256_CIFAR10'],
+                                                                  'train' : 1,
+                                                                   'depth' : 164,
+                                                                   'withGP' : True
+                                                                  }
+                                                      },
+                     'GP+ENCODED256_D164_CIFAR10_TRAIN' : {'class_function' : 'resnet_encoded_cifar10',
+                                                  'init_params' : {'root' : DATASET_PATH['ENCODED256_CIFAR10'],
+                                                                  'train' : 0,
+                                                                   'depth' : 164,
+                                                                   'withGP' : True
+                                                                  }
+                                                      },
+                     'GP+ENCODED256_D164_CIFAR100_VALID' : {'class_function' : 'resnet_encoded_cifar100',
+                                                  'init_params' : {'root' : DATASET_PATH['ENCODED256_CIFAR100'],
+                                                                  'train' : 2,
+                                                                   'depth' : 164,
+                                                                   'withGP' : True
+                                                                  }
+                                                      },
+                     'GP+ENCODED256_D164_CIFAR100_TEST' : {'class_function' : 'resnet_encoded_cifar100',
+                                                  'init_params' : {'root' : DATASET_PATH['ENCODED256_CIFAR100'],
+                                                                  'train' : 1,
+                                                                   'depth' : 164,
+                                                                   'withGP' : True
+                                                                  }
+                                                      },
+                     'GP+ENCODED256_D164_CIFAR100_TRAIN' : {'class_function' : 'resnet_encoded_cifar100',
+                                                  'init_params' : {'root' : DATASET_PATH['ENCODED256_CIFAR100'],
+                                                                  'train' : 0,
+                                                                   'depth' : 164,
+                                                                   'withGP' : True
+                                                                  }
+                                                      }
                      }
 

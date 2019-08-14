@@ -108,16 +108,17 @@ class PreResNet(nn.Module):
         self.layer3 = self._make_layer(block, 64, n, stride=2)
         
         # change!!
-        self.layer4 = self._make_layer(block, 64, n, stride=2)
+        # self.layer4 = self._make_layer(block, 64, n, stride=2)
         # change!!
         
         self.bn = nn.BatchNorm2d(64 * block.expansion)
         self.relu = nn.ReLU(inplace=True)
         self.avgpool = nn.AvgPool2d(8)
         
+        self.fc = nn.Linear(64 * block.expansion, num_classes)
+
         # change!!
-        # self.fc = nn.Linear(64 * block.expansion, num_classes)
-        self.fc = nn.Linear(64 * 16 * block.expansion, num_classes)
+        # self.fc = nn.Linear(64 * 16 * block.expansion, num_classes)
         # change!!
         
         for m in self.modules():
@@ -152,7 +153,7 @@ class PreResNet(nn.Module):
         x = self.layer3(x)  # 8x8
         
         # change!!
-        x = self.layer4(x)  # 8x8
+        # x = self.layer4(x)  # 8x8
         # change!!
         
         x = self.bn(x)

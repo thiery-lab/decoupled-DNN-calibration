@@ -53,7 +53,10 @@ def BayesFCNet(**kwargs):
                 Module.__init__(self)
                 # find a better way to let the encoder model know
                 # the incoming data feature size
-                self.feature_size = kwargs['num_classes']
+                if 'feature_size' not in kwargs:
+                    self.feature_size = kwargs['num_classes']
+                else:
+                    self.feature_size = kwargs['feature_size']
             else:
                 base_class = MODEL_ATTRIB_DICT[archi_name]['class']
                 base_init_args = MODEL_ATTRIB_DICT[archi_name]['args']

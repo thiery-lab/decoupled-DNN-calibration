@@ -212,7 +212,7 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
         
 def load_train(trainloader, testloader):
     
-    global net, likelihood, optimizer, depth, loss_mixing_ratio
+    global net, likelihood, optimizer, depth, loss_mixing_ratio, gp_kernel_feature
     global current_epoch, lr_init, train_epoch, print_init_model_state
     global acc, running_loss, last_epoch, last_lr, end_epoch, optim_SGD
     
@@ -222,7 +222,7 @@ def load_train(trainloader, testloader):
         net = BayesFCNet(device=device, num_classes=num_classes, depth=depth,
                         rendFeature_rank_reduction=rendFeature_rank_reduction, 
                         loss_mixing_ratio=loss_mixing_ratio, net_type=model_type,
-                        fc_setup=fc_setup, trainloader=trainloader)
+                        fc_setup=fc_setup, trainloader=trainloader, feature_size=gp_kernel_feature)
         net.to(device)
         if optim_SGD:
             optimizer = optim.SGD(net.parameters(), lr=lr_init, weight_decay=weight_decay, momentum=momentum)
@@ -409,5 +409,71 @@ def calculate_ECE(probs, preds, targets, ECE_bin=None):
         
     ece_score_mid /= 1.0*sum(ECE_bin_total)
     ece_score_avg /= 1.0*sum(ECE_bin_total)
-    #     print(ECE_bin)
     return ece_score_mid, ece_score_avg
+
+
+def encode_dump(file_name, dataloader, evalmode=False):
+    """
+    function to encode test, train, validation data by
+    feature extractor of the model and store the encoded
+    data in the desired directory
+    
+    file_name : name format of file series eg: 'encoded28x10WideResNet_CIFAR10_640_valid'
+                 including directory if saving to a folder
+    dataloader : train/test/valid loader for encoding
+    evalmode : true if model needs to be switched to eval() before encoding
+    """
+    
+    global device, net
+    
+    if evalmode:
+        net.eval()
+    import json
+    data = {'feature': np.array([]), 'label': np.array([])}
+    file_count = 0
+
+    for i, dat in enumerate(dataloader, 0):
+
+        inputs, labels = dat
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+        if '+GP' in model_type:
+            output = net.feature_extractor.extract_feature(inputs)
+        else:
+            output = net.extract_feature(inputs)
+        
+        if len(data['feature']) > 0:
+            data['feature'] = np.concatenate((data['feature'], output.detach().cpu().numpy()), axis=0)
+            data['label'] = np.concatenate((data['label'], labels.detach().cpu().numpy()), axis=0)
+        else:
+            data['feature'] = output.detach().cpu().numpy()
+            data['label'] = labels.detach().cpu().numpy()
+
+        if len(data['feature'])//10000 > 0:
+
+            data['feature'] = data['feature'].tolist()
+            data['label'] = data['label'].tolist()
+
+            file_count += 1
+            file_n = file_name + str(file_count)
+            print("dumping", len(data['label']), "size data at", file_n)
+            with open(file_n, 'wb') as part_pickle:
+                pickle.dump(data, part_pickle)
+            data = {'feature': np.array([]), 'label': np.array([])}
+
+    if len(data['feature']) > 0:
+
+        data['feature'] = data['feature'].tolist()
+        data['label'] = data['label'].tolist()
+
+        file_count += 1
+        file_n = file_name + str(file_count)
+        print("dumping", len(data['label']), "size data at", file_n)
+        with open(file_n, 'wb') as part_pickle:
+            pickle.dump(data, part_pickle)
+        data = {'feature': np.array([]), 'label': np.array([])}
+
+    if evalmode:
+        _ = net.train()
+    
+    

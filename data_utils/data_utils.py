@@ -74,9 +74,6 @@ class encoded_dataset(data.Dataset):
         self.target = np.array([])
         file_start = self.generate_file_name(depth, withGP)
         
-        if withGP:
-            file_start = 'GP' + file_start
-        
         if train==0:
             for file_count in range(5):
                 with open(root + file_start + '.pt' + str(file_count+1), 'rb') as read_file:
@@ -126,11 +123,12 @@ class resnet_encoded_cifar10(encoded_dataset):
     def generate_file_name(self, depth, withGP):
         file_start = ''
         if withGP:
-            file_start += 'GP'
-        file_start = 'encoded' + str(depth) + 'ResNet_CIFAR10_256'
+            file_start += 'GP+'
+        file_start += 'encoded' + str(depth) + 'ResNet_CIFAR10_256'
         return file_start
-                
-class wideresnet_encoded_cifar10(data.Dataset):
+
+
+class wideresnet_encoded_cifar10(encoded_dataset):
     'Characterizes a dataset for PyTorch'
 
     def generate_file_name(self, depth, withGP):
@@ -138,19 +136,19 @@ class wideresnet_encoded_cifar10(data.Dataset):
         if depth==28:
             depth = '28x10'
         if withGP:
-            file_start += 'GP'
-        file_start = 'encoded' + str(depth) + 'WideResNet_CIFAR10_256'
+            file_start += 'GP+'
+        file_start += 'encoded' + str(depth) + 'WideResNet_CIFAR10_256'
         return file_start
     
                 
-class resnet_encoded_cifar100(data.Dataset):
+class resnet_encoded_cifar100(encoded_dataset):
     'Characterizes a dataset for PyTorch'
 
     def generate_file_name(self, depth, withGP):
         file_start = ''
         if withGP:
-            file_start += 'GP'
-        file_start = 'encoded' + str(depth) + 'ResNet_CIFAR100_256'
+            file_start += 'GP+'
+        file_start += 'encoded' + str(depth) + 'ResNet_CIFAR100_256'
         return file_start
 
 
