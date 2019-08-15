@@ -174,6 +174,6 @@ def generate_dataloaders(data_name, batch_size, shuffle, num_workers, root=None)
             weights=dataset.sample_weights,
             num_samples=len(dataset.sample_weights),
             replacement=True)
-        return data.DataLoader(dataset, batch_size=batch_size, sampler=sampler, shuffle=False, num_workers=num_workers)
+        return data.DataLoader(dataset, batch_size=batch_size, sampler=sampler, shuffle=shuffle, num_workers=num_workers)
     else:
-        return data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+        return data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)

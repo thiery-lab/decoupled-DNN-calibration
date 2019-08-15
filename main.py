@@ -10,27 +10,31 @@ import data_utils as datutil
 #import hmc
 
 # Data loader initialization
-trainloader1 = datutil.generate_dataloaders('DIAB_RETIN_TRAIN', root='/scratch/e0367435/DIABETIC_RETINOPATHY/', batch_size=25, shuffle=True, num_workers=5)
-testloader1 = datutil.generate_dataloaders('DIAB_RETIN_TEST', root='/scratch/e0367435/DIABETIC_RETINOPATHY/', batch_size=15, shuffle=False, num_workers=5)
+trainloader1 = datutil.generate_dataloaders('CIFAR10_TRAIN', batch_size=300, shuffle=False,
+                                            num_workers=2, root='/scratch/e0367435/')
+testloader1 = datutil.generate_dataloaders('CIFAR10_TEST', batch_size=300, shuffle=False,
+                                           num_workers=2, root='/scratch/e0367435/')
+validloader1 = datutil.generate_dataloaders('CIFAR100_TEST', batch_size=300, shuffle=False,
+                                            num_workers=2, root='/scratch/e0367435/')
 
 # Cifar-100 interesting classes (used during out-of-class entropy calculation)
 interesting_labels = [0, 1, 16, 17, 20, 21, 29, 39, 40, 49, 57, 71, 72, 73, 76]
 
 # model to train/load/analyse
 # user defined params
-attribute_dict = {'model_type' : "PreResNet110",     # <Kernel_name> + <GP>
+attribute_dict = {'model_type' : "PreResNet+GP",     # <Kernel_name> + <GP>
     'saved_checkpoint_name' : "",
-    'fc_setup' : [2],
+    'fc_setup' : [10],
     'load_model' : False,
     'train_model' : True,
-    'train_epoch' : 50,
-    'num_classes' : 2,
+    'train_epoch' : 150,
+    'num_classes' : 10,
     'weight_decay' : 1e-4,
-    'predef_test_acc' : 90,
-    'depth' : 110,
+    'predef_test_acc' : 91,
+    'depth' : 164,
     'grid_size' : 64,
-    'lr_init' : 0.01,
-    'lr_final' : 0.001,
+    'lr_init' : 0.2,
+    'lr_final' : 0.02,
     'optim_SGD' : True,
     'device' : torch.device('cuda:0'),
     'gp_kernel_feature' : 256, # 256, 640

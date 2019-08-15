@@ -210,7 +210,7 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
     return
 
         
-def load_train(trainloader, testloader):
+def load_train(trainloader, testloader, partial_loading=False):
     
     global net, likelihood, optimizer, depth, loss_mixing_ratio, gp_kernel_feature
     global current_epoch, lr_init, train_epoch, print_init_model_state
@@ -261,7 +261,16 @@ def load_train(trainloader, testloader):
     if load_model:
         checkpoint = torch.load(SAVED_MODEL_PATH + saved_checkpoint_name + '.chkpt')
         print("Model state loaded")
-        net.load_state_dict(checkpoint['model_state'])
+
+        current_state = net.state_dict()
+        state_dict_to_load = checkpoint['model_state']
+        if partial_loading:
+            state_dict_to_load = {k: v for k, v in state_dict_to_load.items() if k in current_state}
+            print("Partial loading will update only %d parameters out of %d parameters" % (len(state_dict_to_load),
+                                                                                           len(current_state)))
+
+        current_state.update(state_dict_to_load)
+        net.load_state_dict(state_dict_to_load)
 
         if 'randFeature' in net.net_type:
             net.rand_W = checkpoint['rand_W'].to(device)
@@ -345,12 +354,12 @@ def save_model():
     attributes = [('depth', depth), ('lr', lr_init), ('mom', momentum), ('wd', weight_decay),
                   ('FC', '-'.join(map(str, fc_setup))), ('acc', acc)]
     
-    checkpoint = {'epoch' : last_epoch,
-                  'model_state' : net.state_dict(),
-                  'optim_state' : optimizer.state_dict(),
-                  'loss' : running_loss,
-                  'acc' : acc,
-                  'last_lr' : last_lr}
+    checkpoint = {'epoch': last_epoch,
+                  'model_state': net.state_dict(),
+                  'optim_state': optimizer.state_dict(),
+                  'loss': running_loss,
+                  'acc': acc,
+                  'last_lr': last_lr}
     
     if 'randFeature' in net.net_type:
         checkpoint['rand_W'] = net.rand_W
@@ -476,4 +485,4 @@ def encode_dump(file_name, dataloader, evalmode=False):
     if evalmode:
         _ = net.train()
     
-    
+
