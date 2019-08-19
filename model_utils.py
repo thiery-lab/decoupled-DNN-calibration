@@ -304,46 +304,47 @@ def load_train(trainloader, testloader, partial_loading=False):
     # with gpytorch.settings.use_toeplitz(False), gpytorch.settings.max_preconditioner_size(0):
     for epoch in range(current_epoch, epoch_count):  # loop over the dataset multiple times
 
+        if optim_SGD:
             factor = learning_rate_mod_factor(epoch, running_loss)
             for i, g in enumerate(optimizer.param_groups):
                 print("Learning rate for param %d is currently %.4f" %(i, g['lr']))
                 push_output("Learning rate for param %d is currently %.4f\n" %(i, g['lr']))
                 g['lr'] = lr_init * factor
-#                 if i == 1 and '+GP' in model_type:
-#                     g['lr'] = lr_init * factor * 0.01
+    #                 if i == 1 and '+GP' in model_type:
+    #                     g['lr'] = lr_init * factor * 0.01
                 print("Learning rate for param %d has been changed to %.4f" %(i, g['lr']))
                 push_output("Learning rate for param %d has been changed to %.4f\n" %(i, g['lr']))
 
-            for i, data in enumerate(trainloader, 0):
+        for i, data in enumerate(trainloader, 0):
 
-                inputs, labels = data
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-                optimizer.zero_grad()
-                if '+GP' not in model_type:
-                    loss = net.forward(inputs, labels, random_sample_train)
-                else:
-                    output = net(inputs)
-                    loss = -mll(output, labels)
-                loss.backward()
-                # net.modify_grad()
-                optimizer.step()
-                running_loss = 0.9*running_loss + 0.1*loss.item() if running_loss != 0 else loss.item()
-                if i% (len(trainloader) // 2) == 0:
-                    print('[%d, %5d] loss: %.3f' %(epoch + 1, i + 1, running_loss))
-                    push_output('[%d, %5d] loss: %.3f\n' %(epoch + 1, i + 1, running_loss))
+            inputs, labels = data
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            optimizer.zero_grad()
+            if '+GP' not in model_type:
+                loss = net.forward(inputs, labels, random_sample_train)
+            else:
+                output = net(inputs)
+                loss = -mll(output, labels)
+            loss.backward()
+            # net.modify_grad()
+            optimizer.step()
+            running_loss = 0.9*running_loss + 0.1*loss.item() if running_loss != 0 else loss.item()
+            if i% (len(trainloader) // 2) == 0:
+                print('[%d, %5d] loss: %.3f' %(epoch + 1, i + 1, running_loss))
+                push_output('[%d, %5d] loss: %.3f\n' %(epoch + 1, i + 1, running_loss))
 
-            last_lr = lr_init * factor
-            last_epoch = epoch
-            print("=== Accuracy using SGD params ===")
-            push_output("=== Accuracy using SGD params ===\n")
-            validate("test", testloader, accuracy_only=True)
-            push_output('Overall accuracy : %2d %%\n' % (acc))
-            if stop_predef_acc:
-                if acc >= predef_test_acc and epoch >= current_epoch + 0.7*(epoch_count - current_epoch):
-                    print("Stopped because accuracy reached")
-                    push_output("Stopped because accuracy reached\n")
-                    break
+        last_lr = lr_init * factor if optim_SGD else lr_init
+        last_epoch = epoch
+        print("=== Accuracy using SGD params ===")
+        push_output("=== Accuracy using SGD params ===\n")
+        validate("test", testloader, accuracy_only=True)
+        push_output('Overall accuracy : %2d %%\n' % (acc))
+        if stop_predef_acc:
+            if acc >= predef_test_acc and epoch >= current_epoch + 0.7*(epoch_count - current_epoch):
+                print("Stopped because accuracy reached")
+                push_output("Stopped because accuracy reached\n")
+                break
     
     print('Model is ready')
     
