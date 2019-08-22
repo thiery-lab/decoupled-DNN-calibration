@@ -24,6 +24,7 @@ NUMBER_OF_SAMPLES_FOR_MARGINAL_PREDICTION = 10
 program_outp_file_name = 'model_trajectory.txt'
 output_writer = None #
 saved_checkpoint_name = ""
+component_pretrained_mods = []
 
 load_model = True
 train_model = False
@@ -258,36 +259,56 @@ def load_train(trainloader, testloader, partial_loading=False):
     print("total number of parameters is", pytorch_total_params)
 
     # load model from disk
-    if load_model:
+    if load_model and not partial_loading:
         checkpoint = torch.load(SAVED_MODEL_PATH + saved_checkpoint_name + '.chkpt')
         print("Model state loaded")
 
         current_state = net.state_dict()
         state_dict_to_load = checkpoint['model_state']
-        if partial_loading:
-            state_dict_to_load = {k: v for k, v in state_dict_to_load.items() if k in current_state}
-            print("Partial loading will update only %d parameters out of %d parameters" % (len(state_dict_to_load),
-                                                                                           len(current_state)))
-
         current_state.update(state_dict_to_load)
-        net.load_state_dict(state_dict_to_load)
+        net.load_state_dict(current_state)
 
         if 'randFeature' in net.net_type:
             net.rand_W = checkpoint['rand_W'].to(device)
             net.rand_B = checkpoint['rand_B'].to(device)
-        
+
         if '+GP' in net.net_type:
             likelihood.load_state_dict(checkpoint['likelihood_state'])
             print("Likelihood state loaded")
-            
+
         print("Model is loaded! Loss = %.3f and accuracy = %.3f %%" %(checkpoint['loss'], checkpoint['acc'] \
                                                       if checkpoint['acc'] > 1 else 100*checkpoint['acc']))
-        net.train()
         optimizer.load_state_dict(checkpoint['optim_state'])
         print("Optimizer is loaded!")
         current_epoch = checkpoint['epoch']
         lr_init = checkpoint['last_lr']
         print("Current lr is: %.3f and target lr is: %.3f" %(lr_init, lr_final))
+
+    elif partial_loading:
+
+        print("Model state loaded")
+        current_state = net.state_dict()
+        state_dict_to_load = dict()
+
+        for pretrained_mod in component_pretrained_mods:
+            checkpoint = torch.load(SAVED_MODEL_PATH + pretrained_mod + '.chkpt')
+            checkpoint_dict = checkpoint['model_state']
+            for k, v in checkpoint_dict.items():
+                if k in current_state:
+                    state_dict_to_load[k] = v
+                elif 'feature_extractor.' + k in current_state:
+                    state_dict_to_load['feature_extractor.' + k] = v
+            
+            if '+GP' in net.net_type and 'likelihood_state' in checkpoint:
+                likelihood.load_state_dict(checkpoint['likelihood_state'])
+                print("Likelihood state loaded")
+
+        current_state.update(state_dict_to_load)
+        print("Partial loading will update only %d parameters out of %d parameters" % (len(state_dict_to_load),
+                                                                                           len(current_state)))
+        net.load_state_dict(current_state)
+            
+    _ = net.train()
 
     # derived params
     epoch_count = current_epoch
@@ -349,7 +370,7 @@ def load_train(trainloader, testloader, partial_loading=False):
     print('Model is ready')
     
 
-def save_model():
+def save_model(cmd_dict):
     
     # Save model, optim and some stats
     attributes = [('depth', depth), ('lr', lr_init), ('mom', momentum), ('wd', weight_decay),
@@ -360,7 +381,8 @@ def save_model():
                   'optim_state': optimizer.state_dict(),
                   'loss': running_loss,
                   'acc': acc,
-                  'last_lr': last_lr}
+                  'last_lr': last_lr,
+                  'command_dict' : cmd_dict}
     
     if 'randFeature' in net.net_type:
         checkpoint['rand_W'] = net.rand_W
