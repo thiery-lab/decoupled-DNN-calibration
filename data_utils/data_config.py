@@ -8,7 +8,7 @@ DATASET_PATH = {'CIFAR10' : '/home/rahul/lab_work/data/',
                 'CIFAR100' : '/home/rahul/lab_work/data/',
                 'ENCODED256_CIFAR10' : '/home/rahul/lab_work/data/encoded_cifar/',
                 'ENCODED256_CIFAR100' : '/home/rahul/lab_work/data/encoded_cifar/',
-                'DIABETIC_RETINOPATHY' : '/data02/DIABETIC_RETINOPATHY/'
+                'DIABETIC_RETINOPATHY' : '/data02/'
                }
 
 
@@ -123,8 +123,10 @@ DATASET_DICTIONARY = {'CIFAR10_TRAIN' : {'class_function' : torchvision.datasets
                      'DIAB_RETIN_TRAIN' : {'class_function' : 'retinopathy_dataset',
                                         'init_params' : {'root' : DATASET_PATH['DIABETIC_RETINOPATHY'],
                                                         'train' : True,
-                                                        'transform' : transforms.Compose([transforms.ToTensor(), 
-                                                                                    transforms.Normalize((0.4914, 0.4822, 0.4465), 
+                                                        'transform' : transforms.Compose([transforms.RandomResizedCrop(256),
+                                                                                          transforms.RandomHorizontalFlip(),
+                                                                                          transforms.ToTensor(),
+                                                                                          transforms.Normalize((0.4914, 0.4822, 0.4465),
                                                                                                          (0.2023, 0.1994, 0.2010))]),
                                                         'binary' : True
                                                         }
@@ -132,7 +134,9 @@ DATASET_DICTIONARY = {'CIFAR10_TRAIN' : {'class_function' : torchvision.datasets
                       'DIAB_RETIN_TEST' : {'class_function' : 'retinopathy_dataset',
                                         'init_params' : {'root' : DATASET_PATH['DIABETIC_RETINOPATHY'],
                                                         'train' : False,
-                                                        'transform' : transforms.Compose([transforms.ToTensor(), 
+                                                        'transform' : transforms.Compose([transforms.RandomResizedCrop(256),
+                                                                                          transforms.RandomHorizontalFlip(),
+                                                                                          transforms.ToTensor(),
                                                                                     transforms.Normalize((0.4914, 0.4822, 0.4465), 
                                                                                                          (0.2023, 0.1994, 0.2010))]),
                                                         'binary' : True

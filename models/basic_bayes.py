@@ -9,7 +9,7 @@ from torch.nn.parameter import Parameter
 from torch.nn import init
 import math
 import copy
-from models.preresnet import PreResNet
+from models.preresnet import PreResNet, PreResDIABNet
 from models.wide_resnet import WideResNet
 
 # stores the architecture base class argument names
@@ -17,7 +17,10 @@ from models.wide_resnet import WideResNet
 MODEL_ATTRIB_DICT = {'PreResNet' : {'args': ['num_classes', 'depth'], 
                                  'lin_layer': 'fc',
                                  'class': PreResNet},
-                    'WideResNet' : {'args': ['num_classes', 'depth', 'widen_factor', 'dropout_rate'], 
+                     'PreResDIABNet' : {'args': ['num_classes', 'depth'],
+                                 'lin_layer': 'fc',
+                                 'class': PreResDIABNet},
+                     'WideResNet' : {'args': ['num_classes', 'depth', 'widen_factor', 'dropout_rate'],
                                     'lin_layer': 'linear', 
                                     'class': WideResNet},}
 

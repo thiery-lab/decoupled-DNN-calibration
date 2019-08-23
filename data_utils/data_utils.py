@@ -20,6 +20,7 @@ class retinopathy_dataset(data.Dataset):
 
 
     def __init__(self, root, train, transform, binary=True, balance=True):
+        root += 'DIABETIC_RETINOPATHY/'
         if train:
             self.img_dir = root + 'train/'
             label_csv = root + 'trainLabels.csv'
@@ -56,7 +57,7 @@ class retinopathy_dataset(data.Dataset):
     def __getitem__(self, idx):
         img_name = self.imgs[idx]
         image = Image.open(self.img_dir + img_name + '.jpeg')
-        image = image.resize((256, 256), resample=Image.BILINEAR)
+        # image = image.resize((256, 256), resample=Image.BILINEAR)
         image = self.transform(image)
         label = self.labels[idx]
 

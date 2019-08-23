@@ -32,6 +32,7 @@ perform_swa = False
 stop_predef_acc = True
 print_init_model_state = True
 
+save_freq = 100
 current_epoch = 0
 train_epoch = 180                    # Retraining epoch when loading pretrained model to retrain
 swa_epoch = 100                      # How many epochs for SWA params
@@ -214,7 +215,7 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
 def load_train(trainloader, testloader, partial_loading=False):
     
     global net, likelihood, optimizer, depth, loss_mixing_ratio, gp_kernel_feature
-    global current_epoch, lr_init, train_epoch, print_init_model_state
+    global current_epoch, lr_init, train_epoch, print_init_model_state, save_freq
     global acc, running_loss, last_epoch, last_lr, end_epoch, optim_SGD
     
     running_loss = 0.0
@@ -361,6 +362,8 @@ def load_train(trainloader, testloader, partial_loading=False):
         push_output("=== Accuracy using SGD params ===\n")
         validate("test", testloader, accuracy_only=True)
         push_output('Overall accuracy : %2d %%\n' % (acc))
+        if epoch % save_freq == 0:
+            save_model(None, True)
         if stop_predef_acc:
             if acc >= predef_test_acc and epoch >= current_epoch + 0.7*(epoch_count - current_epoch):
                 print("Stopped because accuracy reached")
@@ -370,8 +373,9 @@ def load_train(trainloader, testloader, partial_loading=False):
     print('Model is ready')
     
 
-def save_model(cmd_dict):
-    
+def save_model(cmd_dict, interim=False):
+
+    global net
     # Save model, optim and some stats
     attributes = [('depth', depth), ('lr', lr_init), ('mom', momentum), ('wd', weight_decay),
                   ('FC', '-'.join(map(str, fc_setup))), ('acc', acc)]
@@ -395,7 +399,11 @@ def save_model(cmd_dict):
     checkpoint_name = model_type + '_' + '_'.join(['-'.join(map(str, item)) for item in attributes])
     curtime = dt.datetime.now()
     tm = curtime.strftime("%Y-%m-%d-%H.%M")
-    torch.save(checkpoint, SAVED_MODEL_PATH + checkpoint_name + '-' + tm + '.chkpt')
+    if not interim:
+        final_name = SAVED_MODEL_PATH + checkpoint_name + '-' + tm + '.chkpt'
+    else:
+        final_name = SAVED_MODEL_PATH + checkpoint_name + '.interim'
+    torch.save(checkpoint, final_name)
     print("Model and optimizer status has been saved!")
     
 
