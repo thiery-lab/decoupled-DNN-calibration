@@ -78,7 +78,7 @@ attribute_dict = {'model_type' : args.model, #"PreResNet+GP",     # <Kernel_name
     'device' : torch.device('cuda:%d'%args.deviceid),
     'lr_init' : args.lr[0],
     'lr_final' : args.lr[1],
-    'gp_kernel_feature' : args.coef_load, # 256, 640
+    'gp_kernel_feature' : args.gp_ksize, # 256, 640
     'print_init_model_state' : False}
 
 
