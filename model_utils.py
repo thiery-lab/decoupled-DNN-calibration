@@ -202,8 +202,10 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
         _ = likelihood.train()
 
     if not accuracy_only:
-        stat_dict = {'entrop' : entropy_list, 'predictions' : pred_list, 'targets' : target_list, 
-                     'loss' : loss, 'probs' : prob_list}
+        ece_mid, ece_avg = calculate_ECE(probs=prob_list, preds=pred_list, targets=target_list)
+        print('ECE values are %.3f, %3f when mid bin and avg used respectively' %(ece_mid, ece_avg))
+        stat_dict = {'entrop' : entropy_list, 'predictions' : pred_list, 'targets' : target_list,
+                     'loss' : loss, 'probs' : prob_list, 'ece' : (ece_mid, ece_avg)}
         save_path_extension = 'validpred' if validation_type == 'out-of-class' else validation_type + 'pred'
         save_path = SAVED_PRED_PATH + saved_checkpoint_name + '.' + save_path_extension
         with open(save_path, 'wb') as predict_dict_file:
@@ -263,6 +265,9 @@ def load_train(trainloader, testloader, partial_loading=False):
     if load_model and not partial_loading:
         checkpoint = torch.load(SAVED_MODEL_PATH + saved_checkpoint_name + '.chkpt')
         print("Model state loaded")
+        if 'command_dict' in checkpoint:
+            print('Command directory was as follows\n',
+                  checkpoint['command_dict'].__repr__().replace(', ', ',\n'))
 
         current_state = net.state_dict()
         state_dict_to_load = checkpoint['model_state']
@@ -375,7 +380,7 @@ def load_train(trainloader, testloader, partial_loading=False):
 
 def save_model(cmd_dict, interim=False):
 
-    global net
+    global net, saved_checkpoint_name
     # Save model, optim and some stats
     attributes = [('depth', depth), ('lr', lr_init), ('mom', momentum), ('wd', weight_decay),
                   ('FC', '-'.join(map(str, fc_setup))), ('acc', acc)]
@@ -400,7 +405,9 @@ def save_model(cmd_dict, interim=False):
     curtime = dt.datetime.now()
     tm = curtime.strftime("%Y-%m-%d-%H.%M")
     if not interim:
-        final_name = SAVED_MODEL_PATH + checkpoint_name + '-' + tm + '.chkpt'
+        final_name = SAVED_MODEL_PATH + checkpoint_name + '-' + tm
+        saved_checkpoint_name = final_name
+        final_name += '.chkpt'
     else:
         final_name = SAVED_MODEL_PATH + checkpoint_name + '.interim'
     torch.save(checkpoint, final_name)
@@ -415,7 +422,7 @@ def return_model():
 def calculate_ECE(probs, preds, targets, ECE_bin=None):
     
     if ECE_bin is None:
-        ECE_bin = np.sort(probs)[::len(probs)//20].tolist()
+        ECE_bin = np.sort(probs)[::len(probs)//30].tolist()
         
     if ECE_bin[0] == 0:
         ECE_bin = ECE_bin[1:]

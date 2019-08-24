@@ -33,6 +33,7 @@ parser.add_argument("--test_size", type=int, help="test batch size")
 parser.add_argument("--outsamp_size", type=int, help="out of sample data batch size")
 parser.add_argument("--logfile", type=str, help="log file for the run")
 parser.add_argument("--is_train", action='store_true', help="whether model will be trained or not")
+parser.add_argument("--infer", action='store_true', help="whether inference will be performed at the end")
 parser.add_argument("--epoch", type=int, default=100, help="number of training epoch")
 parser.add_argument("--save_freq", type=int, default=100, help="interim model saving frequency")
 parser.add_argument("--numc", type=int, help="number of label class")
@@ -44,14 +45,16 @@ parser.add_argument("--sgd", action='store_true', help="whether SGD is going to 
 parser.add_argument("--deviceid", type=int, default=0, help="cuda gpu id")
 parser.add_argument("--lr", type=float, nargs=2, help="learning rate start_value, end_value e.g. --lr 0.1 0.008")
 parser.add_argument("--gp_ksize", type=int, help="output size of feature extractor of GP i.e. output size before applying fc layer")
+parser.add_argument("--noshuffle", action='store_false', help="do not shuffle the dataloaders")
+
 args = parser.parse_args()
-print(args.fc, args.numc)
+
 # Data loader initialization
-trainloader1 = datutil.generate_dataloaders(args.train, batch_size=args.train_size, shuffle=False,
+trainloader = datutil.generate_dataloaders(args.train, batch_size=args.train_size, shuffle=args.noshuffle,
                                             num_workers=2, root=args.datadir)
-testloader1 = datutil.generate_dataloaders(args.test, batch_size=args.test_size, shuffle=False,
+testloader = datutil.generate_dataloaders(args.test, batch_size=args.test_size, shuffle=args.noshuffle,
                                            num_workers=2, root=args.datadir)
-validloader1 = datutil.generate_dataloaders(args.outsamp, batch_size=args.outsamp_size, shuffle=False,
+validloader = datutil.generate_dataloaders(args.outsamp, batch_size=args.outsamp_size, shuffle=args.noshuffle,
                                             num_workers=2, root=args.datadir)
 
 # Cifar-100 interesting classes (used during out-of-class entropy calculation)
@@ -81,16 +84,6 @@ attribute_dict = {'model_type' : args.model, #"PreResNet+GP",     # <Kernel_name
     'gp_kernel_feature' : args.gp_ksize, # 256, 640
     'print_init_model_state' : False}
 
-
-if 'encoded' not in attribute_dict['model_type']:
-    trainloader = trainloader1
-    testloader = testloader1
-    # validloader = validloader1
-else:
-    trainloader = trainloader2
-    testloader = testloader2
-    # validloader = validloader2
-
 print('='*20, "Loading Model", '='*20,)
 modutil.refresh_params()
 for propt in attribute_dict:
@@ -107,8 +100,9 @@ if attribute_dict['train_model']:
 
 # param_list = param_chain if 'mcmc' in model['model_type'] else []
 # Perform evaluation on model
-# modutil.validate("out-of-class", validloader, interesting_labels=interesting_labels)
-print("Validation (out of class) data analysis performed")
+if args.infer:
+    modutil.validate("out-of-class", validloader, interesting_labels=interesting_labels)
+    print("Validation (out of class) data analysis performed")
 
-# modutil.validate("test", testloader)
-print("Test data analysis performed")
+    modutil.validate("test", testloader)
+    print("Test data analysis performed")
