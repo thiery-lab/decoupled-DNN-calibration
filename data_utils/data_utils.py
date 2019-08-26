@@ -68,9 +68,10 @@ class encoded_dataset(data.Dataset):
     """
     Base class for encoded dataset
     """
-    def __init__(self, root, train, depth, withGP=False):
+    def __init__(self, root, train, depth, withGP=False, start=0, end=-1):
         'Initialization'
-        
+
+        root += 'encoded_cifar/'
         self.feature = np.array([])
         self.target = np.array([])
         file_start = self.generate_file_name(depth, withGP)
@@ -96,7 +97,11 @@ class encoded_dataset(data.Dataset):
                 self.feature = data['feature']
                 self.target = data['label']
 
-    
+        end = len(self.feature) - 1 if end == -1 else end
+        self.feature = self.feature[start:end+1]
+        self.target = self.target[start:end+1]
+
+
     def generate_file_name(self, depth, withGP):
         """
         generate base file name for the encoded features
@@ -153,17 +158,24 @@ class resnet_encoded_cifar100(encoded_dataset):
         return file_start
 
 
-def generate_dataloaders(data_name, batch_size, shuffle, num_workers, root=None):
+def generate_dataloaders(data_name, batch_size, shuffle, num_workers, root=None, start=0, end=-1):
     '''
         generates dataloaders and returns it. Data name is one of the keys in
         DATASET_DICTIONARY which is stored in this module 'data_utils' e.g: 'CIFAR10_TRAIN'
         batch_size, shuffle, num_workers are pytorch dataloader parameters
+        root: custom datapath. NOTE: do not include datafolder name in root, keep the path
+                till parent directory
+        start, end: dataset slice parameters. If provided dataset will be sliced to dataset[start:end+1]
+                do not provide default start (=0) or end (=len(dataset))
     '''
     
     dataset_attributes = DATASET_DICTIONARY[data_name]
     if root is not None:
         dataset_attributes['init_params']['root'] = root
-    
+    if start != 0 or end != -1:
+        dataset_attributes['init_params']['start'] = start
+        dataset_attributes['init_params']['end'] = end
+
     dataset_class = dataset_attributes['class_function']
     if isinstance(dataset_class, str):
         dataset_class = getattr(sys.modules[__name__], dataset_class)
@@ -175,6 +187,6 @@ def generate_dataloaders(data_name, batch_size, shuffle, num_workers, root=None)
             weights=dataset.sample_weights,
             num_samples=len(dataset.sample_weights),
             replacement=True)
-        return data.DataLoader(dataset, batch_size=batch_size, sampler=sampler, shuffle=shuffle, num_workers=num_workers)
+        return data.DataLoader(dataset, batch_size=batch_size, sampler=sampler, num_workers=num_workers)
     else:
         return data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)

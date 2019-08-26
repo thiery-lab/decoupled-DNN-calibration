@@ -6,8 +6,8 @@ import torchvision
 
 DATASET_PATH = {'CIFAR10' : '/home/rahul/lab_work/data/',
                 'CIFAR100' : '/home/rahul/lab_work/data/',
-                'ENCODED256_CIFAR10' : '/home/rahul/lab_work/data/encoded_cifar/',
-                'ENCODED256_CIFAR100' : '/home/rahul/lab_work/data/encoded_cifar/',
+                'ENCODED256_CIFAR10' : '/home/rahul/lab_work/data/',
+                'ENCODED256_CIFAR100' : '/home/rahul/lab_work/data/',
                 'DIABETIC_RETINOPATHY' : '/data02/'
                }
 

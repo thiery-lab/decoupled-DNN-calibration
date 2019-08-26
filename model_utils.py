@@ -55,7 +55,8 @@ random_sample_train = 5              # Prior distribution sample size (used with
 swa_update_freq = 1
 
 # Module attributes holding important data which are training instance level
-device = torch.device('cuda:0')
+device = None
+ngpu = 0
 net = None
 likelihood = None
 optimizer = None
@@ -161,11 +162,17 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
             if '+GP' not in net.net_type:
                 outputs = net.avg_encode(images.to(device), NUMBER_OF_SAMPLES_FOR_MARGINAL_PREDICTION, param_chain)
             else:
-                outputs = likelihood(net(images.to(device))).probs.mean(0)
+                outp = likelihood(net(images.to(device))).probs
+                outputs = outp.mean(0)
 
-            if len(labels.size()) == 1:
-                scatter_lab = labels.unsqueeze(1)
-            
+                if validation_type != "out-of-class":
+                    for index in range(outp.shape[0]):
+                        probs = outp[index]
+                        current_loss = torch.log(torch.gather(probs, dim=1, index=labels.to(device).reshape((len(labels), 1))))
+                        current_loss = -torch.sum(current_loss) / outp.shape[0]
+
+                    loss = (loss * (batch_count - 1) + current_loss) / (1.0 * batch_count)
+
             entropy = torch.sum(outputs * torch.log(outputs), dim=1)
             max_prob, predicted = torch.max(outputs, 1)
             c = (predicted == labels.to(device)).squeeze()
@@ -177,7 +184,7 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
                 if validation_type != "out-of-class":
 
                     if '+GP' not in net.net_type:
-                        batch_avg_loss = net.forward(images.to(device), labels.to(device), NUMBER_OF_SAMPLES_FOR_MARGINAL_PREDICTION)
+                        batch_avg_loss = net.forward(images.to(device), labels.to(device), NUMBER_OF_SAMPLES_FOR_MARGINAL_PREDICTION).sum()
                         loss = (loss * (batch_count - 1) + batch_avg_loss.item()) / (1.0 * batch_count)
                 
                 for prob, entrop, label, pred in zip(max_prob, entropy, labels, predicted):
@@ -202,8 +209,9 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
         _ = likelihood.train()
 
     if not accuracy_only:
-        ece_mid, ece_avg = calculate_ECE(probs=prob_list, preds=pred_list, targets=target_list)
-        print('ECE values are %.3f, %3f when mid bin and avg used respectively' %(ece_mid, ece_avg))
+        bins = [(p+1)/30.0 for p in range(30)]
+        ece_mid, ece_avg = calculate_ECE(probs=prob_list, preds=pred_list, targets=target_list, ECE_bin=bins)
+        print('ECE values are %.3f, %.3f when mid bin and avg used respectively' %(ece_mid, ece_avg))
         stat_dict = {'entrop' : entropy_list, 'predictions' : pred_list, 'targets' : target_list,
                      'loss' : loss, 'probs' : prob_list, 'ece' : (ece_mid, ece_avg)}
         save_path_extension = 'validpred' if validation_type == 'out-of-class' else validation_type + 'pred'
@@ -218,7 +226,7 @@ def load_train(trainloader, testloader, partial_loading=False):
     
     global net, likelihood, optimizer, depth, loss_mixing_ratio, gp_kernel_feature
     global current_epoch, lr_init, train_epoch, print_init_model_state, save_freq
-    global acc, running_loss, last_epoch, last_lr, end_epoch, optim_SGD
+    global acc, running_loss, last_epoch, last_lr, end_epoch, optim_SGD, ngpu
     
     running_loss = 0.0
     
@@ -262,8 +270,15 @@ def load_train(trainloader, testloader, partial_loading=False):
     print("total number of parameters is", pytorch_total_params)
 
     # load model from disk
-    if load_model and not partial_loading:
-        checkpoint = torch.load(SAVED_MODEL_PATH + saved_checkpoint_name + '.chkpt')
+    if load_model:
+        if os.path.exists(SAVED_MODEL_PATH + saved_checkpoint_name + '.chkpt'):
+            checkpoint = torch.load(SAVED_MODEL_PATH + saved_checkpoint_name + '.chkpt', map_location=device)
+        elif os.path.exists(SAVED_MODEL_PATH + saved_checkpoint_name + '.interim'):
+            checkpoint = torch.load(SAVED_MODEL_PATH + saved_checkpoint_name + '.interim', map_location=device)
+        else:
+            print("Neither checkpoint nor iterim file found! check file name")
+            sys.exit(-1)
+
         print("Model state loaded")
         if 'command_dict' in checkpoint:
             print('Command directory was as follows\n',
@@ -290,14 +305,19 @@ def load_train(trainloader, testloader, partial_loading=False):
         lr_init = checkpoint['last_lr']
         print("Current lr is: %.3f and target lr is: %.3f" %(lr_init, lr_final))
 
-    elif partial_loading:
+    elif len(component_pretrained_mods) > 0:
 
-        print("Model state loaded")
         current_state = net.state_dict()
         state_dict_to_load = dict()
 
         for pretrained_mod in component_pretrained_mods:
-            checkpoint = torch.load(SAVED_MODEL_PATH + pretrained_mod + '.chkpt')
+            if os.path.exists(SAVED_MODEL_PATH + pretrained_mod + '.chkpt'):
+                checkpoint = torch.load(SAVED_MODEL_PATH + pretrained_mod + '.chkpt', map_location=device)
+            elif os.path.exists(SAVED_MODEL_PATH + pretrained_mod + '.interim'):
+                checkpoint = torch.load(SAVED_MODEL_PATH + pretrained_mod + '.interim', map_location=device)
+            else:
+                print("Neither checkpoint nor iterim file found! check file name")
+                sys.exit(-1)
             checkpoint_dict = checkpoint['model_state']
             for k, v in checkpoint_dict.items():
                 if k in current_state:
@@ -353,7 +373,7 @@ def load_train(trainloader, testloader, partial_loading=False):
             else:
                 output = net(inputs)
                 loss = -mll(output, labels)
-            loss.backward()
+            loss.sum().backward()
             # net.modify_grad()
             optimizer.step()
             running_loss = 0.9*running_loss + 0.1*loss.item() if running_loss != 0 else loss.item()
@@ -383,7 +403,7 @@ def save_model(cmd_dict, interim=False):
     global net, saved_checkpoint_name
     # Save model, optim and some stats
     attributes = [('depth', depth), ('lr', lr_init), ('mom', momentum), ('wd', weight_decay),
-                  ('FC', '-'.join(map(str, fc_setup))), ('acc', acc)]
+                  ('FC', '-'.join(map(str, fc_setup))), ('acc', '%.2f'%acc)]
     
     checkpoint = {'epoch': last_epoch,
                   'model_state': net.state_dict(),
@@ -406,7 +426,7 @@ def save_model(cmd_dict, interim=False):
     tm = curtime.strftime("%Y-%m-%d-%H.%M")
     if not interim:
         final_name = SAVED_MODEL_PATH + checkpoint_name + '-' + tm
-        saved_checkpoint_name = final_name
+        saved_checkpoint_name = checkpoint_name + '-' + tm
         final_name += '.chkpt'
     else:
         final_name = SAVED_MODEL_PATH + checkpoint_name + '.interim'
@@ -422,7 +442,7 @@ def return_model():
 def calculate_ECE(probs, preds, targets, ECE_bin=None):
     
     if ECE_bin is None:
-        ECE_bin = np.sort(probs)[::len(probs)//30].tolist()
+        ECE_bin = np.sort(probs)[::len(probs)//20].tolist()
         
     if ECE_bin[0] == 0:
         ECE_bin = ECE_bin[1:]

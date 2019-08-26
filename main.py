@@ -42,31 +42,33 @@ parser.add_argument("--stopAt", type=float, help="test accuracy at which trainin
 parser.add_argument("--depth", type=int, help="kernel depth e.g. for PreResNet110 depth = 110")
 parser.add_argument("--gridsize", type=int, default=64, help="gridsize for gridinducing variational GP, e.g. 64")
 parser.add_argument("--sgd", action='store_true', help="whether SGD is going to be used or not (ADAM)")
-parser.add_argument("--deviceid", type=int, default=0, help="cuda gpu id")
+parser.add_argument("--deviceid", type=str, default='', help="cuda gpu id")
 parser.add_argument("--lr", type=float, nargs=2, help="learning rate start_value, end_value e.g. --lr 0.1 0.008")
 parser.add_argument("--gp_ksize", type=int, help="output size of feature extractor of GP i.e. output size before applying fc layer")
 parser.add_argument("--noshuffle", action='store_false', help="do not shuffle the dataloaders")
+parser.add_argument("--nworker", type=int, default=2, help="number of workers for dataloader")
 
 args = parser.parse_args()
 
 # Data loader initialization
 trainloader = datutil.generate_dataloaders(args.train, batch_size=args.train_size, shuffle=args.noshuffle,
-                                            num_workers=2, root=args.datadir)
+                                            num_workers=args.nworker, root=args.datadir)  # , end=4999)
 testloader = datutil.generate_dataloaders(args.test, batch_size=args.test_size, shuffle=args.noshuffle,
-                                           num_workers=2, root=args.datadir)
+                                           num_workers=args.nworker, root=args.datadir)  # , start=5000)
 validloader = datutil.generate_dataloaders(args.outsamp, batch_size=args.outsamp_size, shuffle=args.noshuffle,
-                                            num_workers=2, root=args.datadir)
+                                            num_workers=args.nworker, root=args.datadir)
 
 # Cifar-100 interesting classes (used during out-of-class entropy calculation)
 interesting_labels = [0, 1, 16, 17, 20, 21, 29, 39, 40, 49, 57, 71, 72, 73, 76]
+cuda_device = 'cuda' if args.deviceid == '' else 'cuda:' + args.deviceid
+n_gpu = torch.cuda.device_count()
 
 # model to train/load/analyse
 # user defined params
-attribute_dict = {'model_type' : args.model, #"PreResNet+GP",     # <Kernel_name> + <GP>
+attribute_dict = {'model_type' : args.model,
     'saved_checkpoint_name' : args.chkpt,
     'fc_setup' : args.fc,
     'load_model' : args.load,
-    'partial_load' : args.coef_load,
     'program_outp_file_name' : args.logfile,
     'component_pretrained_mods' : args.coef_load,
     'train_model' : args.is_train,
@@ -78,11 +80,12 @@ attribute_dict = {'model_type' : args.model, #"PreResNet+GP",     # <Kernel_name
     'depth' : args.depth,
     'grid_size' : args.gridsize,
     'optim_SGD' : args.sgd,
-    'device' : torch.device('cuda:%d'%args.deviceid),
+    'device' : torch.device(cuda_device),
     'lr_init' : args.lr[0],
     'lr_final' : args.lr[1],
     'gp_kernel_feature' : args.gp_ksize, # 256, 640
-    'print_init_model_state' : False}
+    'print_init_model_state' : False,
+    'ngpu' : n_gpu}
 
 print('='*20, "Loading Model", '='*20,)
 modutil.refresh_params()
@@ -93,7 +96,7 @@ for propt in attribute_dict:
         print("Model property '%s' not found!"%(propt))
 
 # load / train the model
-modutil.load_train(trainloader, testloader, attribute_dict['partial_load'])
+modutil.load_train(trainloader, testloader)
 if attribute_dict['train_model']:
     print("Saving model!")
     modutil.save_model(attribute_dict)
