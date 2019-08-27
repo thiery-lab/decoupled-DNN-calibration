@@ -22,7 +22,7 @@ SAVED_PRED_PATH = 'saved_predictions/'
 # Number of samples to draw from weight priors to get marginal predictive likelihood
 NUMBER_OF_SAMPLES_FOR_MARGINAL_PREDICTION = 10
 program_outp_file_name = 'model_trajectory.txt'
-output_writer = None #
+output_writer = None
 saved_checkpoint_name = ""
 component_pretrained_mods = []
 
@@ -31,6 +31,7 @@ train_model = False
 perform_swa = False
 stop_predef_acc = True
 print_init_model_state = True
+ece_mid_list, ece_avg_list = [], []
 
 save_freq = 100
 current_epoch = 0
@@ -136,7 +137,7 @@ def refresh_params():
 def validate(validation_type, dataloader, accuracy_only=False, interesting_labels=[], param_chain=[]):
     # validation type needs to be one of (train, test, out-of-class)
     
-    global net, likelihood, acc, saved_checkpoint_name
+    global net, likelihood, acc, saved_checkpoint_name, ece_avg_list, ece_mid_list
     pred_list, target_list, entropy_list, prob_list = [[], [], [], []]
     
     dataiter = iter(dataloader)
@@ -187,13 +188,13 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
                         batch_avg_loss = net.forward(images.to(device), labels.to(device), NUMBER_OF_SAMPLES_FOR_MARGINAL_PREDICTION).sum()
                         loss = (loss * (batch_count - 1) + batch_avg_loss.item()) / (1.0 * batch_count)
                 
-                for prob, entrop, label, pred in zip(max_prob, entropy, labels, predicted):
+            for prob, entrop, label, pred in zip(max_prob, entropy, labels, predicted):
                 
-                    pred_list.append(pred.item())
-                    target_list.append(label.item())
-                    prob_list.append(prob.item())
-                    if (validation_type != 'out-of-class') or (label in interesting_labels):
-                        entropy_list.append(-entrop.item())
+                pred_list.append(pred.item())
+                target_list.append(label.item())
+                prob_list.append(prob.item())
+                if (validation_type != 'out-of-class') or (label in interesting_labels):
+                    entropy_list.append(-entrop.item())
 
             if validation_type != "out-of-class":
                 correct += c.sum().item()
@@ -208,12 +209,16 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
     if '+GP' in model_type:
         _ = likelihood.train()
 
+    bins = [(p + 1) / 30.0 for p in range(30)]
+    ece_mid, ece_avg = calculate_ECE(probs=prob_list, preds=pred_list, targets=target_list, ECE_bin=bins)
+    ece_mid_list.append(ece_mid)
+    ece_avg_list.append(ece_avg)
+    print('ECE values are %.3f, %.3f when mid bin and avg used respectively' % (ece_mid, ece_avg))
+
     if not accuracy_only:
-        bins = [(p+1)/30.0 for p in range(30)]
-        ece_mid, ece_avg = calculate_ECE(probs=prob_list, preds=pred_list, targets=target_list, ECE_bin=bins)
-        print('ECE values are %.3f, %.3f when mid bin and avg used respectively' %(ece_mid, ece_avg))
-        stat_dict = {'entrop' : entropy_list, 'predictions' : pred_list, 'targets' : target_list,
-                     'loss' : loss, 'probs' : prob_list, 'ece' : (ece_mid, ece_avg)}
+        stat_dict = {'entrop': entropy_list, 'predictions': pred_list, 'targets': target_list,
+                     'loss': loss, 'probs': prob_list, 'ece': (ece_mid, ece_avg),
+                     'ece_mid_traj': ece_mid_list, 'ece_avg_traj': ece_avg_list}
         save_path_extension = 'validpred' if validation_type == 'out-of-class' else validation_type + 'pred'
         save_path = SAVED_PRED_PATH + saved_checkpoint_name + '.' + save_path_extension
         with open(save_path, 'wb') as predict_dict_file:
@@ -222,7 +227,7 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
     return
 
         
-def load_train(trainloader, testloader, partial_loading=False):
+def load_train(trainloader, testloader):
     
     global net, likelihood, optimizer, depth, loss_mixing_ratio, gp_kernel_feature
     global current_epoch, lr_init, train_epoch, print_init_model_state, save_freq
@@ -387,14 +392,14 @@ def load_train(trainloader, testloader, partial_loading=False):
         push_output("=== Accuracy using SGD params ===\n")
         validate("test", testloader, accuracy_only=True)
         push_output('Overall accuracy : %2d %%\n' % (acc))
-        if epoch % save_freq == 0:
+        if epoch % save_freq == 0 and epoch != 0:
             save_model(None, True)
         if stop_predef_acc:
             if acc >= predef_test_acc and epoch >= current_epoch + 0.7*(epoch_count - current_epoch):
                 print("Stopped because accuracy reached")
                 push_output("Stopped because accuracy reached\n")
                 break
-    
+
     print('Model is ready')
     
 

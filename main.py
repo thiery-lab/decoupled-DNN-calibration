@@ -38,7 +38,7 @@ parser.add_argument("--epoch", type=int, default=100, help="number of training e
 parser.add_argument("--save_freq", type=int, default=100, help="interim model saving frequency")
 parser.add_argument("--numc", type=int, help="number of label class")
 parser.add_argument("--wd", type=float, help="weight decay")
-parser.add_argument("--stopAt", type=float, help="test accuracy at which training will be forced stop")
+parser.add_argument("--stopAt", type=float, default=100, help="test accuracy at which training will be forced stop")
 parser.add_argument("--depth", type=int, help="kernel depth e.g. for PreResNet110 depth = 110")
 parser.add_argument("--gridsize", type=int, default=64, help="gridsize for gridinducing variational GP, e.g. 64")
 parser.add_argument("--sgd", action='store_true', help="whether SGD is going to be used or not (ADAM)")
