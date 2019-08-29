@@ -11,6 +11,7 @@ import math
 import copy
 from models.preresnet import PreResNet, PreResDIABNet
 from models.wide_resnet import WideResNet
+from models.diab_retin_kaggle import DiabRetinModel
 
 # stores the architecture base class argument names
 # the name of the linear layer of the architecture
@@ -22,7 +23,11 @@ MODEL_ATTRIB_DICT = {'PreResNet' : {'args': ['num_classes', 'depth'],
                                  'class': PreResDIABNet},
                      'WideResNet' : {'args': ['num_classes', 'depth', 'widen_factor', 'dropout_rate'],
                                     'lin_layer': 'linear', 
-                                    'class': WideResNet},}
+                                    'class': WideResNet},
+                     'DiabJeffNet': {'args': ['input_dim', 'num_channel', 'dropout_rate', 'num_classes'],
+                                    'lin_layer': 'fc',
+                                    'class': DiabRetinModel}
+                     }
 
 
 class Identity(nn.Module):

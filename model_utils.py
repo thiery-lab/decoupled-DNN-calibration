@@ -52,6 +52,7 @@ gp_layer_init = 0.001                #
 lr_final = 0.008                     # Final learning rate (also used for SWA)
 momentum = 0.9                       # Momentum
 weight_decay = None                  # Weight decay parameter
+gp_weight_decay = None               # Weight decay specific to GP layer
 random_sample_train = 5              # Prior distribution sample size (used with bayesian net)
 swa_update_freq = 1
 
@@ -231,7 +232,7 @@ def load_train(trainloader, testloader):
     
     global net, likelihood, optimizer, depth, loss_mixing_ratio, gp_kernel_feature
     global current_epoch, lr_init, train_epoch, print_init_model_state, save_freq
-    global acc, running_loss, last_epoch, last_lr, end_epoch, optim_SGD, ngpu
+    global acc, running_loss, last_epoch, last_lr, end_epoch, optim_SGD, ngpu, gp_weight_decay
     
     running_loss = 0.0
     
@@ -255,18 +256,18 @@ def load_train(trainloader, testloader):
         likelihood.to(device)
         if optim.SGD:
             optimizer = optim.SGD([
-            {'params': net.feature_extractor.parameters()},
-            {'params': net.gp_layer.hyperparameters(), 'lr': lr_init * 0.01},
-            {'params': net.gp_layer.variational_parameters()},
+            {'params': net.feature_extractor.parameters(), 'weight_decay': weight_decay},
+            {'params': net.gp_layer.hyperparameters(), 'lr': lr_init * 0.01, 'weight_decay': gp_weight_decay},
+            {'params': net.gp_layer.variational_parameters(), 'weight_decay': gp_weight_decay},
             {'params': likelihood.parameters()},
-                            ], lr=lr_init, momentum=momentum, nesterov=True, weight_decay=weight_decay)
+                            ], lr=lr_init, momentum=momentum, nesterov=True)  # , weight_decay=weight_decay)
         else:
             optimizer = optim.Adam([
-            {'params': net.feature_extractor.parameters()},
-            {'params': net.gp_layer.hyperparameters(), 'lr': lr_init * 0.01},
-            {'params': net.gp_layer.variational_parameters()},
-            {'params': likelihood.parameters()},
-                            ], lr=lr_init, nesterov=True, weight_decay=weight_decay)
+            {'params': net.feature_extractor.parameters(), 'weight_decay': weight_decay},
+            {'params': net.gp_layer.hyperparameters(), 'lr': lr_init * 0.01, 'weight_decay': gp_weight_decay},
+            {'params': net.gp_layer.variational_parameters(), 'weight_decay': gp_weight_decay},
+            {'params': likelihood.parameters(), 'weight_decay': gp_weight_decay},
+                            ], lr=lr_init)  # , weight_decay=weight_decay)
         _ = net.train()
         likelihood.train()
         mll = gpytorch.mlls.VariationalELBO(likelihood, net.gp_layer, num_data=len(trainloader.dataset))
@@ -408,7 +409,7 @@ def save_model(cmd_dict, interim=False):
     global net, saved_checkpoint_name
     # Save model, optim and some stats
     attributes = [('depth', depth), ('lr', lr_init), ('mom', momentum), ('wd', weight_decay),
-                  ('FC', '-'.join(map(str, fc_setup))), ('acc', '%.2f'%acc)]
+                  ('gpwd', gp_weight_decay), ('FC', '-'.join(map(str, fc_setup))), ('acc', '%.2f'%acc)]
     
     checkpoint = {'epoch': last_epoch,
                   'model_state': net.state_dict(),

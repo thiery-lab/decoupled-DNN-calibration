@@ -35,7 +35,7 @@ class retinopathy_dataset(data.Dataset):
         self.imgs = [item[0] for item in label_tuple]
         self.labels = [int(item[1]) for item in label_tuple]
         if self.binary:
-            self.labels = [min(label,1) for label in self.labels]
+            self.labels = [min(label, 1) for label in self.labels]
 
         bad_images = ['10_left']
         for img in bad_images:
@@ -49,7 +49,9 @@ class retinopathy_dataset(data.Dataset):
         deviation = np.std(counts) / np.mean(counts)
         if deviation > 0.05 and train:
             weights = 1./torch.tensor(counts, dtype=torch.float)
+            weights = weights / weights.sum()
             self.sample_weights = weights[self.labels]
+            print('Class weights will be set as ', dict(zip(classes, weights.numpy())))
 
     def __len__(self):
         return len(self.imgs)

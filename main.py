@@ -47,6 +47,7 @@ parser.add_argument("--lr", type=float, nargs=2, help="learning rate start_value
 parser.add_argument("--gp_ksize", type=int, help="output size of feature extractor of GP i.e. output size before applying fc layer")
 parser.add_argument("--noshuffle", action='store_false', help="do not shuffle the dataloaders")
 parser.add_argument("--nworker", type=int, default=2, help="number of workers for dataloader")
+parser.add_argument("--gp_wd", type=float, default=-1.0, help="gp layer weight decay")
 
 args = parser.parse_args()
 
@@ -62,6 +63,8 @@ validloader = datutil.generate_dataloaders(args.outsamp, batch_size=args.outsamp
 interesting_labels = [0, 1, 16, 17, 20, 21, 29, 39, 40, 49, 57, 71, 72, 73, 76]
 cuda_device = 'cuda' if args.deviceid == '' else 'cuda:' + args.deviceid
 n_gpu = torch.cuda.device_count()
+if args.gp_wd < 0:
+    args.gp_wd = args.wd
 
 # model to train/load/analyse
 # user defined params
@@ -76,6 +79,7 @@ attribute_dict = {'model_type' : args.model,
     'save_freq' : args.save_freq,
     'num_classes' : args.numc,
     'weight_decay' : args.wd,
+    'gp_weight_decay' : args.gp_wd,
     'predef_test_acc' : args.stopAt,
     'depth' : args.depth,
     'grid_size' : args.gridsize,
@@ -87,6 +91,8 @@ attribute_dict = {'model_type' : args.model,
     'print_init_model_state' : False,
     'ngpu' : n_gpu}
 
+print("Running with setup :")
+print(attribute_dict.__repr__().replace(', ', ',\n'))
 print('='*20, "Loading Model", '='*20,)
 modutil.refresh_params()
 for propt in attribute_dict:
