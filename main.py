@@ -48,6 +48,7 @@ parser.add_argument("--gp_ksize", type=int, help="output size of feature extract
 parser.add_argument("--noshuffle", action='store_false', help="do not shuffle the dataloaders")
 parser.add_argument("--nworker", type=int, default=2, help="number of workers for dataloader")
 parser.add_argument("--gp_wd", type=float, default=-1.0, help="gp layer weight decay")
+parser.add_argument("--probe_lr", action='store_true', help="whether to perform learning rate probing")
 
 args = parser.parse_args()
 
@@ -68,7 +69,8 @@ if args.gp_wd < 0:
 
 # model to train/load/analyse
 # user defined params
-attribute_dict = {'model_type' : args.model,
+attribute_dict = {
+    'model_type' : args.model,
     'saved_checkpoint_name' : args.chkpt,
     'fc_setup' : args.fc,
     'load_model' : args.load,
@@ -103,11 +105,13 @@ for propt in attribute_dict:
 
 # load / train the model
 modutil.load_train(trainloader, testloader)
+if args.probe_lr:
+    modutil.find_optimal_lr(trainloader)
+
 if attribute_dict['train_model']:
     print("Saving model!")
     modutil.save_model(attribute_dict)
 
-# param_list = param_chain if 'mcmc' in model['model_type'] else []
 # Perform evaluation on model
 if args.infer:
     modutil.validate("out-of-class", validloader, interesting_labels=interesting_labels)

@@ -121,17 +121,23 @@ DATASET_DICTIONARY = {'CIFAR10_TRAIN' : {'class_function' : torchvision.datasets
                                                                   }
                                                   },
                      'DIAB_RETIN_TRAIN' : {'class_function' : 'retinopathy_dataset',
+                                           'collate_fn' : 'diab_retin_collate_fn',
                                         'init_params' : {'root' : DATASET_PATH['DIABETIC_RETINOPATHY'],
                                                         'train' : True,
-                                                        'transform' : transforms.Compose([transforms.RandomResizedCrop(512),
+                                                        'transform' : transforms.Compose([transforms.Resize((512, 512)),  # RandomResizedCrop(512),
+                                                                                          #transforms.RandomAffine((0,360)),
+                                                                                          transforms.ColorJitter(brightness=(0.7, 1.3),
+                                                                                                                 contrast=(0.7, 1.3)),
                                                                                           transforms.RandomHorizontalFlip(),
                                                                                           transforms.ToTensor(),
                                                                                           transforms.Normalize((0.4914, 0.4822, 0.4465),
-                                                                                                         (0.2023, 0.1994, 0.2010))]),
+                                                                                                               (0.2023, 0.1994, 0.2010))
+                                                                                          ]),
                                                         'binary' : True
                                                         }
                                         },
                       'DIAB_RETIN_TEST' : {'class_function' : 'retinopathy_dataset',
+                                           'collate_fn' : 'diab_retin_collate_fn',
                                         'init_params' : {'root' : DATASET_PATH['DIABETIC_RETINOPATHY'],
                                                         'train' : False,
                                                         'transform' : transforms.Compose([transforms.RandomResizedCrop(512),

@@ -52,7 +52,6 @@ def BayesFCNet(**kwargs):
                 archi_name = archi
                 base_class = MODEL_ATTRIB_DICT[archi_name]['class']
 
-    
     class bayesFCNet(base_class):
 
         def __init__(self, **kwargs):
@@ -181,13 +180,11 @@ def BayesFCNet(**kwargs):
                             param_dict[w_sigma_B].data.uniform_(-stdv, stdv)
                             prev_layer = layer
 
-
             elif "bayesian" in self.net_type:
                 raise Exception("FC-Bayesian network initialized with no FC layer! Rerun with FC layer setup")
 
             self.parameter_names = [name for name in self.named_parameters()]
             self.fc_setup = fc_setup
-
 
         def extract_feature(self, x):
 
@@ -245,8 +242,7 @@ def BayesFCNet(**kwargs):
 
             return x
 
-
-        def avg_encode(self, x, noise_sample, param_list=[]):
+        def avg_encode(self, x, noise_sample=20, param_list=[]):
 
             x = self.extract_feature(x)
 
@@ -285,11 +281,9 @@ def BayesFCNet(**kwargs):
 
             return final_encode
 
-
-        def forward(self, x, labs, random_sample_train):
+        def forward(self, x, labs, random_sample_train=20):
 
             kl = 0
-            input_size = x.size()[0]
             if 'bayesian' not in self.net_type:
                 random_sample_train = 1
 
@@ -297,16 +291,17 @@ def BayesFCNet(**kwargs):
 
             for i in range(random_sample_train):
                 last_layer = self.FC_encode(x)
+                input_size = last_layer.size()[0]
+
                 probs = F.softmax(last_layer, dim=1)
                 class_logprob = torch.log(torch.gather(probs, dim=1, index=labs.reshape((input_size, 1))))
 
                 one_hot_mat = torch.zeros(probs.size()).to(self.device).scatter(1, labs.reshape((input_size, 1)), 1)
                 kl -= (1 - self.loss_mixing_ratio) * torch.sum((one_hot_mat - probs)**2).item()/(1.0*probs.size()[1]*probs.size()[0])
 
-                kl -= self.loss_mixing_ratio * torch.sum(class_logprob)/(random_sample_train)
+                kl -= self.loss_mixing_ratio * torch.sum(class_logprob)/random_sample_train
 
             return kl/(1.0*input_size)
-
 
         def return_init_MCMC_state(self):
 
@@ -329,7 +324,6 @@ def BayesFCNet(**kwargs):
                     flattened_state = np.concatenate((flattened_state, flattened_w, flattened_b))
 
             return flattened_state
-
 
         def pot_energy_FC(self, pos):
 
@@ -370,7 +364,6 @@ def BayesFCNet(**kwargs):
                 gc.collect()
                 # print("final value of loss is at forward", loss/index)
                 return (loss/index + (pos**2).sum()/(2*label_size[0]*index))
-
 
         def grad_pot_energy_FC(self, pos):
 

@@ -15,7 +15,11 @@ class DiabRetinModel(nn.Module):
         self.conv1 = nn.Conv2d(num_channel, 32, kernel_size=7, stride=2,
                                padding=3, padding_mode='same', bias=True)
         self.leakyrelu = nn.LeakyReLU(0.5, inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2)
+
+        self.maxpool2d = nn.MaxPool2d(kernel_size=3, stride=2)
+
+        self.maxpool1d = nn.MaxPool1d(kernel_size=2, stride=2)
+
         self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=1,
                                padding=1, padding_mode='same', bias=True)
         self.conv3 = nn.Conv2d(32, 32, kernel_size=3, stride=1,
@@ -41,28 +45,33 @@ class DiabRetinModel(nn.Module):
         self.conv13 = nn.Conv2d(256, 256, kernel_size=3, stride=1,
                                 padding=1, padding_mode='same', bias=True)
         self.dropout = nn.Dropout(p=dropout_rate)
-        self.fc = nn.Linear(12544, 2)
+
+        self.fc1 = nn.Linear(12544, 1024)
+        self.fc2 = nn.Linear(1024, 1024)
+        self.fc3 = nn.Linear(512, num_classes*2)
+
 
     def forward(self, x):
 
+        batch_size = x.size(0)
         x = self.conv1(x)
         x = self.leakyrelu(x)
 
-        x = self.maxpool(x)
+        x = self.maxpool2d(x)
 
         x = self.conv2(x)
         x = self.leakyrelu(x)
         x = self.conv3(x)
         x = self.leakyrelu(x)
 
-        x = self.maxpool(x)
+        x = self.maxpool2d(x)
 
         x = self.conv4(x)
         x = self.leakyrelu(x)
         x = self.conv5(x)
         x = self.leakyrelu(x)
 
-        x = self.maxpool(x)
+        x = self.maxpool2d(x)
 
         x = self.conv6(x)
         x = self.leakyrelu(x)
@@ -73,7 +82,7 @@ class DiabRetinModel(nn.Module):
         x = self.conv9(x)
         x = self.leakyrelu(x)
 
-        x = self.maxpool(x)
+        x = self.maxpool2d(x)
 
         x = self.conv10(x)
         x = self.leakyrelu(x)
@@ -84,10 +93,24 @@ class DiabRetinModel(nn.Module):
         x = self.conv13(x)
         x = self.leakyrelu(x)
 
-        x = self.maxpool(x)
-        x = x.view(x.size(0), -1)
+        x = self.maxpool2d(x)
+        x = x.view(batch_size, -1)
         x = self.dropout(x)
-        x = self.fc(x)
+        x = self.fc1(x)
+        x = self.maxpool1d(x.unsqueeze(1))
+        x = x.squeeze()
+
+        # combine both eyes
+        x = x.view(batch_size // 2, -1)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        x = self.maxpool1d(x.unsqueeze(1))
+        x = x.squeeze()
+
+        x = self.dropout(x)
+        x = self.fc3(x)
+        # reshape to batch_size
+        x = x.view(batch_size, -1)
 
         return x
 

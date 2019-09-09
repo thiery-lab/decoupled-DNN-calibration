@@ -245,7 +245,7 @@ def load_train(trainloader, testloader):
         if optim_SGD:
             optimizer = optim.SGD(net.parameters(), lr=lr_init, weight_decay=weight_decay, momentum=momentum)
         else:
-            optimizer = optim.SGD(net.parameters(), lr=lr_init, weight_decay=weight_decay)
+            optimizer = optim.Adam(net.parameters(), lr=lr_init, weight_decay=weight_decay)
         _ = net.train()
         likelihood = None
     else:
@@ -549,4 +549,11 @@ def encode_dump(file_name, dataloader, evalmode=False):
     if evalmode:
         _ = net.train()
     
+
+def find_optimal_lr(trainloader):
+
+    global net, optimizer
+    lr_finder = LRFinder(model=net, optimizer=optimizer, criterion=None, device="cuda")
+    lr_finder.range_test(trainloader, end_lr=100, num_iter=200, step_mode="exp")
+    lr_finder.plot(fname='/home/svu/e0367435/decoupled-DNN-calibration/lr_probing.pdf')
 

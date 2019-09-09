@@ -7,6 +7,8 @@ import numpy as np
 from PIL import Image
 from .data_config import *
 import sys
+import copy
+
 
 class retinopathy_dataset(data.Dataset):
     '''DIABETIC RETINOPATHY dataset downloaded from
@@ -17,7 +19,6 @@ class retinopathy_dataset(data.Dataset):
     binary : whether healthy '0' vs damaged '1,2,3,4' binary detection (True) 
              or multiclass (False)
     '''
-
 
     def __init__(self, root, train, transform, binary=True, balance=True):
         root += 'DIABETIC_RETINOPATHY/'
@@ -34,9 +35,11 @@ class retinopathy_dataset(data.Dataset):
             label_tuple = [line.strip().split(',')[:2] for line in label_file.readlines()[1:]]
         self.imgs = [item[0] for item in label_tuple]
         self.labels = [int(item[1]) for item in label_tuple]
+
         if self.binary:
             self.labels = [min(label, 1) for label in self.labels]
 
+        # Discard bad images
         bad_images = ['10_left']
         for img in bad_images:
             if img in self.imgs:
@@ -44,7 +47,30 @@ class retinopathy_dataset(data.Dataset):
                 self.imgs = self.imgs[:index] + self.imgs[index+1:]
                 self.labels = self.labels[:index] + self.labels[index+1:]
 
-        # make all these better
+        # Discard images that doesnt have other eye
+        len_imgs = len(self.imgs)
+        img_idx = 0
+        while img_idx < len_imgs:
+            img_name = self.imgs[img_idx]
+            other_eye = img_name.replace('left', 'right') if 'left' in img_name else img_name.replace('right', 'left')
+            if other_eye not in self.imgs:
+                self.imgs = self.imgs[:img_idx] + self.imgs[img_idx+1:]
+                self.labels = self.labels[:img_idx] + self.labels[img_idx + 1:]
+                len_imgs -= 1
+            else:
+                img_idx += 1
+
+        # List patients and record eye indices
+        temp_patients = set([img_name[:-5] if img_name.endswith('_left') else img_name[:-6] for img_name in self.imgs])
+        self.patients = {}
+
+        for patient in temp_patients:
+            if patient + '_left' in self.imgs and patient + '_right' in self.imgs:
+                left = self.imgs.index(patient + '_left')
+                right = self.imgs.index(patient + '_right')
+                self.patients[patient] = (left, right)
+
+        # Make all these better
         classes, counts = np.unique(np.array(self.labels), return_counts=True)
         deviation = np.std(counts) / np.mean(counts)
         if deviation > 0.05 and train:
@@ -57,13 +83,25 @@ class retinopathy_dataset(data.Dataset):
         return len(self.imgs)
 
     def __getitem__(self, idx):
-        img_name = self.imgs[idx]
-        image = Image.open(self.img_dir + img_name + '.jpeg')
-        # image = image.resize((256, 256), resample=Image.BILINEAR)
-        image = self.transform(image)
-        label = self.labels[idx]
 
-        return image, label
+        # img_name = self.imgs[idx]
+        # image = Image.open(self.img_dir + img_name + '.jpeg')
+        # # image = image.resize((256, 256), resample=Image.BILINEAR)
+        # image = self.transform(image)
+        # label = self.labels[idx]
+
+        img_name = self.imgs[idx]
+        patient_name = img_name[:-5] if img_name.endswith('_left') else img_name[:-6]
+        img_indices = self.patients[patient_name]
+        other_idx = img_indices[1] if idx==img_indices[0] else img_indices[0]
+        current_img = Image.open(self.img_dir + self.imgs[idx] + '.jpeg')
+        other_img = Image.open(self.img_dir + self.imgs[other_idx] + '.jpeg')
+        current_img = self.transform(current_img)
+        other_img = self.transform(other_img)
+        stacked_image = torch.stack((current_img, other_img))
+        stacked_label = torch.tensor([self.labels[idx], self.labels[other_idx]])
+
+        return stacked_image, stacked_label
 
     
 class encoded_dataset(data.Dataset):
@@ -148,7 +186,7 @@ class wideresnet_encoded_cifar10(encoded_dataset):
         file_start += 'encoded' + str(depth) + 'WideResNet_CIFAR10_256'
         return file_start
     
-                
+
 class resnet_encoded_cifar100(encoded_dataset):
     'Characterizes a dataset for PyTorch'
 
@@ -158,6 +196,13 @@ class resnet_encoded_cifar100(encoded_dataset):
             file_start += 'GP+'
         file_start += 'encoded' + str(depth) + 'ResNet_CIFAR100_256'
         return file_start
+
+
+def diab_retin_collate_fn(batch):
+
+    images = [datum[0] for datum in batch]
+    labels = [datum[1] for datum in batch]
+    return torch.cat(images), torch.cat(labels)
 
 
 def generate_dataloaders(data_name, batch_size, shuffle, num_workers, root=None, start=0, end=-1):
@@ -171,7 +216,7 @@ def generate_dataloaders(data_name, batch_size, shuffle, num_workers, root=None,
                 do not provide default start (=0) or end (=len(dataset))
     '''
     
-    dataset_attributes = DATASET_DICTIONARY[data_name]
+    dataset_attributes = copy.deepcopy(DATASET_DICTIONARY[data_name])
     if root is not None:
         dataset_attributes['init_params']['root'] = root
     if start != 0 or end != -1:
@@ -183,12 +228,18 @@ def generate_dataloaders(data_name, batch_size, shuffle, num_workers, root=None,
         dataset_class = getattr(sys.modules[__name__], dataset_class)
     dataset = dataset_class(**dataset_attributes['init_params'])
 
+    collate_fn = dataset_attributes.get('collate_fn', None)
+    if isinstance(collate_fn, str):
+        collate_fn = getattr(sys.modules[__name__], collate_fn)
+
     if hasattr(dataset, 'sample_weights'):
         print("Weighted sampler has been selected to balance classes")
         sampler = data.WeightedRandomSampler(
             weights=dataset.sample_weights,
             num_samples=len(dataset.sample_weights),
             replacement=True)
-        return data.DataLoader(dataset, batch_size=batch_size, sampler=sampler, num_workers=num_workers)
+        return data.DataLoader(dataset, batch_size=batch_size, sampler=sampler,
+                               num_workers=num_workers, collate_fn=collate_fn)
     else:
-        return data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+        return data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
+                               num_workers=num_workers, collate_fn=collate_fn)
