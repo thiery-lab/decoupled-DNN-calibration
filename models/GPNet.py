@@ -62,7 +62,7 @@ if gpytorch_imported:
             super(GaussianProcessLayer, self).__init__(grid_size=grid_size, grid_bounds=[grid_bounds],
                                                        num_dim=num_dim, mixing_params=False, sum_output=False)
             self.covar_module = gpytorch.kernels.ScaleKernel(
-                gpytorch.kernels.RBFKernel(
+                gpytorch.kernels.RBFKernel(#ard_num_dims=num_dim,
                     lengthscale_prior=gpytorch.priors.SmoothedBoxPrior(
                         math.exp(-1), math.exp(1), sigma=0.1, transform=torch.exp
                     )

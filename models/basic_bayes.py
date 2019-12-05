@@ -290,7 +290,7 @@ def BayesFCNet(**kwargs):
             x = self.extract_feature(x)
 
             for i in range(random_sample_train):
-                last_layer = self.FC_encode(x)
+                last_layer = self.FC_encode(x) # / 1.713
                 input_size = last_layer.size()[0]
 
                 probs = F.softmax(last_layer, dim=1)

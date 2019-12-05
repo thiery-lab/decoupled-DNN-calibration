@@ -164,14 +164,16 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
             if '+GP' not in net.net_type:
                 outputs = net.avg_encode(images.to(device), NUMBER_OF_SAMPLES_FOR_MARGINAL_PREDICTION, param_chain)
             else:
-                outp = likelihood(net(images.to(device))).probs
-                outputs = outp.mean(0)
+                with gpytorch.settings.num_likelihood_samples(30):
+                    outp = likelihood(net(images.to(device))).probs
+                    outputs = outp.mean(0)
 
                 if validation_type != "out-of-class":
+                    current_loss = 0
                     for index in range(outp.shape[0]):
                         probs = outp[index]
-                        current_loss = torch.log(torch.gather(probs, dim=1, index=labels.to(device).reshape((len(labels), 1))))
-                        current_loss = -torch.sum(current_loss) / outp.shape[0]
+                        temp_loss = torch.log(torch.gather(probs, dim=1, index=labels.to(device).reshape((len(labels), 1))))
+                        current_loss -= torch.sum(temp_loss) / (outp.shape[1] * outp.shape[0])
 
                     loss = (loss * (batch_count - 1) + current_loss) / (1.0 * batch_count)
 
@@ -231,7 +233,7 @@ def validate(validation_type, dataloader, accuracy_only=False, interesting_label
 def load_train(trainloader, testloader):
     
     global net, likelihood, optimizer, depth, loss_mixing_ratio, gp_kernel_feature
-    global current_epoch, lr_init, train_epoch, print_init_model_state, save_freq
+    global current_epoch, lr_init, train_epoch, print_init_model_state, save_freq, ece_avg_list
     global acc, running_loss, last_epoch, last_lr, end_epoch, optim_SGD, ngpu, gp_weight_decay
     
     running_loss = 0.0
@@ -339,7 +341,7 @@ def load_train(trainloader, testloader):
         print("Partial loading will update only %d parameters out of %d parameters" % (len(state_dict_to_load),
                                                                                            len(current_state)))
         net.load_state_dict(current_state)
-            
+                 
     _ = net.train()
 
     # derived params
@@ -348,6 +350,7 @@ def load_train(trainloader, testloader):
     swa_start = epoch_count
     epoch_count += swa_epoch * int(perform_swa)
     end_epoch = swa_start if 'SWA' in model_type else epoch_count
+    current_state = dict([(name, copy.deepcopy(param.data)) for name,param in net.named_parameters() if 'feature_extractor' in name])
 
     if print_init_model_state:
         for name, param in net.named_parameters():
@@ -379,11 +382,14 @@ def load_train(trainloader, testloader):
             else:
                 output = net(inputs)
                 loss = -mll(output, labels)
+
+            loss = loss
             loss.sum().backward()
             # net.modify_grad()
             optimizer.step()
             running_loss = 0.9*running_loss + 0.1*loss.item() if running_loss != 0 else loss.item()
-            if i% (len(trainloader) // 2) == 0:
+             
+            if i% (len(trainloader) // 4) == 0:
                 print('[%d, %5d] loss: %.3f' %(epoch + 1, i + 1, running_loss))
                 push_output('[%d, %5d] loss: %.3f\n' %(epoch + 1, i + 1, running_loss))
 
@@ -396,7 +402,7 @@ def load_train(trainloader, testloader):
         if epoch % save_freq == 0 and epoch != 0:
             save_model(None, True)
         if stop_predef_acc:
-            if acc >= predef_test_acc and epoch >= current_epoch + 0.7*(epoch_count - current_epoch):
+            if (acc >= predef_test_acc) and epoch >= current_epoch + 0.7*(epoch_count - current_epoch): # or ece_avg_list[-1] <= 0.011
                 print("Stopped because accuracy reached")
                 push_output("Stopped because accuracy reached\n")
                 break
